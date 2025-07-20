@@ -40,12 +40,19 @@ model User {
   email         String    @unique
   password      String
   role          String    @default("USER")
+  department    String?
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  // Team relationships
+  teamMemberships     TeamMember[]
+  createdTeams        Team[]               @relation("TeamCreator")
+  vehicleAssignments  VehicleAssignment[]  @relation("AssignedUser")
+  assignedVehicles    VehicleAssignment[]  @relation("AssignedBy")
 }
 
 model VerificationToken {
@@ -57,15 +64,99 @@ model VerificationToken {
 }
 
 model Vehicle {
+  id                  String   @id @default(cuid())
+  vin                 String   @unique
+  make                String
+  model               String
+  year                Int
+  stock               String?
+  status              String   @default("PENDING")
+  progress            Int      @default(0)
+  assignedTo          String?
+  daysInRecon         Int      @default(0)
+  inventoryDate       DateTime?
+  throughShop         Boolean  @default(false)
+  shopDoneDate        DateTime?
+  detailComplete      Boolean  @default(false)
+  detailDoneDate      DateTime?
+  photoComplete       Boolean  @default(false)
+  photoDoneDate       DateTime?
+  salesReady          Boolean  @default(false)
+  salesReadyDate      DateTime?
+  price               Float?
+  priority            String   @default("normal")
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  vehicleAssignments  VehicleAssignment[]
+}
+
+model Team {
   id          String   @id @default(cuid())
-  vin         String   @unique
-  make        String
-  model       String
-  year        Int
-  status      String   @default("PENDING")
-  progress    Int      @default(0)
-  assignedTo  String?
-  daysInRecon Int      @default(0)
+  name        String   @unique
+  description String?
+  department  String
+  isActive    Boolean  @default(true)
+  createdBy   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  creator             User                @relation("TeamCreator", fields: [createdBy], references: [id])
+  users               TeamMember[]
+  vehicleAssignments  VehicleAssignment[]
+}
+
+model TeamMember {
+  id         String   @id @default(cuid())
+  teamId     String
+  userId     String
+  isActive   Boolean  @default(true)
+  assignedBy String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model VehicleAssignment {
+  id               String   @id @default(cuid())
+  vehicleId        String
+  teamId           String
+  assignedToUserId String?
+  assignedById     String
+  priority         String   @default("normal")
+  notes            String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  vehicle        Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  team           Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignedToUser User?   @relation("AssignedUser", fields: [assignedToUserId], references: [id])
+  assignedBy     User    @relation("AssignedBy", fields: [assignedById], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemSettings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("string")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
