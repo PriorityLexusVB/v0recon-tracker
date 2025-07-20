@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -385,4 +385,190 @@ export default function IntegrationsPage() {
                 </div>
               </div>
 
-              \
+              {testResult && (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-medium mb-2">Last Test Results</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Status:</span>
+                      <span className={testResult.success ? "text-green-600" : "text-red-600"}>
+                        {testResult.success ? "✅ Connected" : "❌ Failed"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Vehicles Found:</span>
+                      <span className="font-medium">{testResult.vehicleCount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Response Time:</span>
+                      <span>{testResult.responseTime}ms</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Integration:</span>
+                      <span>{testResult.integration}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Last Updated:</span>
+                      <span>{new Date(testResult.timestamp).toLocaleString()}</span>
+                    </div>
+                    {testResult.message && (
+                      <div className="pt-2 border-t">
+                        <span className="text-gray-600">Message:</span>
+                        <p className="text-xs mt-1">{testResult.message}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="mobile-setup" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>📱 Mobile Dashboard Setup</CardTitle>
+              <CardDescription>Get your team started with the mobile interface</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="border rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Step 1: Share the Mobile URL</h4>
+                  <div className="flex gap-2">
+                    <input
+                      value={`${typeof window !== "undefined" ? window.location.origin : ""}/mobile`}
+                      readOnly
+                      className="flex-1 bg-gray-50 text-sm p-2 border rounded"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `${typeof window !== "undefined" ? window.location.origin : ""}/mobile`,
+                        )
+                        toast.success("Mobile URL copied to clipboard!")
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">Share this URL with your team members</p>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Step 2: Bookmark on Mobile Devices</h4>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Have team members bookmark the mobile URL on their phones for quick access
+                  </p>
+                  <ul className="text-xs text-gray-500 space-y-1">
+                    <li>• iPhone: Safari → Share → Add to Home Screen</li>
+                    <li>• Android: Chrome → Menu → Add to Home screen</li>
+                  </ul>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Step 3: Test Mobile Access</h4>
+                  <Button asChild>
+                    <a href="/mobile" target="_blank" rel="noopener noreferrer">
+                      <Smartphone className="h-4 w-4 mr-2" />
+                      Open Mobile Dashboard
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="data-analysis" className="space-y-6">
+          {testResult?.analysis && (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Inventory Overview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Total Vehicles</span>
+                      <span className="font-semibold">{testResult.analysis.totalVehicles}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">With Inventory Date</span>
+                      <span className="font-semibold">{testResult.analysis.withInventoryDate}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Avg Days in Inventory</span>
+                      <span className="font-semibold">{testResult.analysis.avgDaysInInventory} days</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Recon Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Through Shop</span>
+                      <span className="font-semibold text-blue-600">{testResult.analysis.throughShop}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Detail Complete</span>
+                      <span className="font-semibold text-green-600">{testResult.analysis.detailComplete}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Overdue</span>
+                      <span className="font-semibold text-red-600">{testResult.analysis.overdue}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Top Makes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {Object.entries(testResult.analysis.byMake)
+                      .sort(([, a], [, b]) => (b as number) - (a as number))
+                      .slice(0, 5)
+                      .map(([make, count]) => (
+                        <div key={make} className="flex justify-between">
+                          <span className="text-sm text-gray-600">{make}</span>
+                          <span className="font-semibold">{count as number}</span>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {!testResult?.analysis && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Run a connection test to see data analysis</p>
+                  <Button className="mt-4" onClick={testGoogleSheetsConnection} disabled={isLoading}>
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <TestTube className="h-4 w-4 mr-2" />
+                    )}
+                    Test vAuto Connection
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
