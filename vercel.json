@@ -1,6 +1,4 @@
 {
-  "buildCommand": "npm install --force && prisma generate && prisma db push && next build",
-  "installCommand": "npm install --force",
   "framework": "nextjs",
   "functions": {
     "app/api/**/*.ts": {
@@ -8,7 +6,6 @@
     }
   },
   "env": {
-    "SKIP_ENV_VALIDATION": "1",
-    "PRISMA_GENERATE_SKIP_AUTOINSTALL": "true"
+    "SKIP_ENV_VALIDATION": "1"
   }
 }

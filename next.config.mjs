@@ -9,11 +9,11 @@ const nextConfig = {
     }
     return config
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,

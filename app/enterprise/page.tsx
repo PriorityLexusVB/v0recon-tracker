@@ -75,7 +75,7 @@ export default function EnterprisePage() {
     return <div className="container mx-auto py-8">Loading...</div>
   }
 
-  if (user?.role !== "admin") {
+  if (user?.role !== "ADMIN") {
     return (
       <div className="container mx-auto py-8">
         <Card>

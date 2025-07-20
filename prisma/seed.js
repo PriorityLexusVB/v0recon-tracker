@@ -1,5 +1,5 @@
 const { PrismaClient } = require("@prisma/client")
-const bcrypt = require("bcrypt")
+const bcryptjs = require("bcryptjs")
 
 const prisma = new PrismaClient()
 
@@ -11,30 +11,26 @@ async function main() {
     {
       name: "Admin User",
       email: "admin@dealership.com",
-      password: await bcrypt.hash("password123", 10),
+      password: await bcryptjs.hash("password123", 10),
       role: "ADMIN",
-      department: "Management",
     },
     {
       name: "Manager User",
       email: "manager@dealership.com",
-      password: await bcrypt.hash("password123", 10),
+      password: await bcryptjs.hash("password123", 10),
       role: "MANAGER",
-      department: "Management",
     },
     {
       name: "Tech User",
       email: "tech@dealership.com",
-      password: await bcrypt.hash("password123", 10),
-      role: "TECHNICIAN",
-      department: "Service",
+      password: await bcryptjs.hash("password123", 10),
+      role: "USER",
     },
     {
       name: "Detail User",
       email: "detail@dealership.com",
-      password: await bcrypt.hash("password123", 10),
-      role: "TECHNICIAN",
-      department: "Detail",
+      password: await bcryptjs.hash("password123", 10),
+      role: "USER",
     },
   ]
 

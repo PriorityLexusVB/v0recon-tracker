@@ -144,7 +144,7 @@ export default function AssignmentsPage() {
     return <div className="container mx-auto py-8">Loading...</div>
   }
 
-  if (user?.role !== "admin" && user?.role !== "manager") {
+  if (user?.role !== "ADMIN" && user?.role !== "MANAGER") {
     return (
       <div className="container mx-auto py-8">
         <Card>
