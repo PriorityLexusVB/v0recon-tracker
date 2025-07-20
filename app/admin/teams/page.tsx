@@ -17,7 +17,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Users, Plus, Settings, UserPlus } from "lucide-react"
+import { Users, Plus, Settings, UserPlus, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { getTeams, createTeam } from "@/app/actions/teams"
 
 interface Team {
   id: string
@@ -40,78 +42,52 @@ export default function TeamsPage() {
   const [isLoadingTeams, setIsLoadingTeams] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const [message, setMessage] = useState("")
 
   useEffect(() => {
-    const fetchTeams = async () => {
-      setIsLoadingTeams(true)
-      // Mock data for demo
-      const mockTeams: Team[] = [
-        {
-          id: "1",
-          name: "Shop Team A",
-          description: "Primary shop reconditioning team",
-          department: "shop",
-          isActive: true,
-          users: [
-            { id: "1", name: "John Smith", email: "john@example.com", role: "USER" },
-            { id: "2", name: "Jane Doe", email: "jane@example.com", role: "USER" },
-          ],
-          vehicleCount: 15,
-        },
-        {
-          id: "2",
-          name: "Detail Team",
-          description: "Vehicle detailing specialists",
-          department: "detail",
-          isActive: true,
-          users: [{ id: "3", name: "Mike Johnson", email: "mike@example.com", role: "USER" }],
-          vehicleCount: 8,
-        },
-      ]
-      setTeams(mockTeams)
-      setIsLoadingTeams(false)
-    }
-
-    fetchTeams()
+    loadTeams()
   }, [])
 
+  const loadTeams = async () => {
+    setIsLoadingTeams(true)
+    try {
+      const result = await getTeams()
+      if (result.success) {
+        setTeams(result.teams)
+      } else {
+        toast.error(result.error || "Failed to load teams")
+      }
+    } catch (error) {
+      console.error("Error loading teams:", error)
+      toast.error("Failed to load teams")
+    } finally {
+      setIsLoadingTeams(false)
+    }
+  }
+
   const handleCreateTeam = (formData: FormData) => {
-    startTransition(() => {
-      const name = formData.get("name") as string
-      const description = formData.get("description") as string
-      const department = formData.get("department") as string
-
-      if (!name || !department) {
-        setMessage("Name and department are required")
-        return
+    startTransition(async () => {
+      try {
+        const result = await createTeam(formData)
+        if (result.success) {
+          toast.success("Team created successfully")
+          setIsCreateDialogOpen(false)
+          loadTeams() // Refresh the teams list
+        } else {
+          toast.error(result.error || "Failed to create team")
+        }
+      } catch (error) {
+        console.error("Error creating team:", error)
+        toast.error("Failed to create team")
       }
-
-      const newTeam: Team = {
-        id: Date.now().toString(),
-        name,
-        description: description || undefined,
-        department,
-        isActive: true,
-        users: [],
-        vehicleCount: 0,
-      }
-
-      setTeams((prev) => [...prev, newTeam])
-      setMessage("Team created successfully")
-      setIsCreateDialogOpen(false)
     })
   }
 
-  useEffect(() => {
-    if (message === "Team created successfully") {
-      const timer = setTimeout(() => setMessage(""), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [message])
-
   if (isLoading) {
-    return <div className="container mx-auto py-8">Loading...</div>
+    return (
+      <div className="container mx-auto py-8 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
   if (user?.role !== "ADMIN" && user?.role !== "MANAGER") {
@@ -183,13 +159,19 @@ export default function TeamsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {message && message !== "Team created successfully" && <p className="text-sm text-red-600">{message}</p>}
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isPending}>
-                  {isPending ? "Creating..." : "Create Team"}
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Team"
+                  )}
                 </Button>
               </div>
             </form>
@@ -200,10 +182,15 @@ export default function TeamsPage() {
       {/* Teams Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {isLoadingTeams ? (
-          <div className="col-span-full text-center py-8">Loading teams...</div>
+          <div className="col-span-full text-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+            <p>Loading teams...</p>
+          </div>
         ) : teams.length === 0 ? (
           <div className="col-span-full text-center py-8">
+            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No teams created yet.</p>
+            <p className="text-sm text-gray-400">Create your first team to get started.</p>
           </div>
         ) : (
           teams.map((team) => (
@@ -245,10 +232,10 @@ export default function TeamsPage() {
                   )}
 
                   <div className="flex justify-end space-x-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" title="Add User">
                       <UserPlus className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" title="Team Settings">
                       <Settings className="h-4 w-4" />
                     </Button>
                   </div>
