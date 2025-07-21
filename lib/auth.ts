@@ -1,11 +1,11 @@
-import type { NextAuthOptions } from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
+import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import { prisma } from "@/lib/prisma"
-import bcryptjs from "bcryptjs"
-import { getServerSession } from "next-auth/next"
+import CredentialsProvider from "next-auth/providers/credentials"
+import bcrypt from "bcryptjs"
+import { prisma } from "./prisma"
+import type { NextAuthConfig } from "next-auth"
 
-export const authOptions: NextAuthOptions = {
+const config = {
   adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
@@ -21,7 +21,7 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.email,
+            email: credentials.email as string,
           },
         })
 
@@ -29,7 +29,7 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const isPasswordValid = await bcryptjs.compare(credentials.password, user.password)
+        const isPasswordValid = await bcrypt.compare(credentials.password as string, user.password)
 
         if (!isPasswordValid) {
           return null
@@ -64,11 +64,8 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/auth/signin",
+    signUp: "/auth/signup",
   },
-}
+} satisfies NextAuthConfig
 
-// Export the auth function for server-side usage
-export const auth = () => getServerSession(authOptions)
-
-// Export signIn and signOut functions for client-side usage
-export { signIn, signOut } from "next-auth/react"
+export const { handlers, auth, signIn, signOut } = NextAuth(config)

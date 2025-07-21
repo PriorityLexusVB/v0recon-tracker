@@ -1,13 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/hooks/use-auth"
-import { Button } from "@/components/ui/button"
-import { Car, Clock, CheckCircle, RefreshCw, Loader2 } from "lucide-react"
-import { toast } from "sonner"
-import { VehicleCard } from "@/components/vehicle-card"
+import { VehicleGrid } from "@/components/vehicle-grid"
 import { VehicleFilters } from "@/components/vehicle-filters"
-import { StatsCard } from "@/components/stats-summary"
+import { Statsummary } from "@/components/stats-summary"
 import { CompletedVehiclesToggle } from "@/components/completed-vehicles-toggle"
 import { CompletedVehiclesPanel } from "@/components/completed-vehicles-panel"
 
@@ -17,18 +13,19 @@ interface Vehicle {
   make: string
   model: string
   year: number
-  color?: string
+  color: string | null
   status: string
   priority: string
-  createdAt: string
-  updatedAt: string
+  location: string | null
+  notes: string | null
+  createdAt: Date
+  updatedAt: Date
+  completedAt: Date | null
 }
 
 export default function ReconCardsPage() {
-  const { user, isLoading } = useAuth()
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([])
-  const [isLoadingVehicles, setIsLoadingVehicles] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
   const [makeFilter, setMakeFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
@@ -36,91 +33,43 @@ export default function ReconCardsPage() {
   const [showCompleted, setShowCompleted] = useState(false)
 
   useEffect(() => {
-    loadVehicles()
+    fetchVehicles()
   }, [])
 
-  useEffect(() => {
-    filterAndSortVehicles()
-  }, [vehicles, statusFilter, makeFilter, priorityFilter, sortBy])
-
-  const loadVehicles = async () => {
-    setIsLoadingVehicles(true)
+  const fetchVehicles = async () => {
     try {
-      const response = await fetch("/api/google-sheets")
-      const data = await response.json()
-
-      if (data.success && data.vehicles) {
-        const vehicleData: Vehicle[] = data.vehicles.map((item: any, index: number) => ({
-          id: item.id || `vehicle_${index}`,
-          vin: item.vin || "",
-          make: item.make || "Unknown",
-          model: item.model || "Unknown",
-          year: item.year || new Date().getFullYear(),
-          color: item.color,
-          status: item.status || "pending",
-          priority: item.priority || "low",
-          createdAt: item.createdAt || new Date().toISOString(),
-          updatedAt: item.updatedAt || new Date().toISOString(),
-        }))
-
-        setVehicles(vehicleData)
-        toast.success(`🚗 Loaded ${vehicleData.length} vehicles from vAuto`)
+      setLoading(true)
+      const response = await fetch("/api/v1/vehicles")
+      if (response.ok) {
+        const data = await response.json()
+        setVehicles(data)
       } else {
-        // Fallback to mock data for demo
-        const mockVehicles: Vehicle[] = [
-          {
-            id: "1",
-            vin: "1HGBH41JXMN109186",
-            make: "Honda",
-            model: "Accord",
-            year: 2022,
-            color: "Red",
-            status: "COMPLETED",
-            priority: "HIGH",
-            createdAt: "2024-01-15T10:00:00Z",
-            updatedAt: "2024-01-15T10:00:00Z",
-          },
-          {
-            id: "2",
-            vin: "1FTFW1ET5DFC10312",
-            make: "Ford",
-            model: "F-150",
-            year: 2021,
-            color: "Blue",
-            status: "PENDING",
-            priority: "MEDIUM",
-            createdAt: "2024-01-10T10:00:00Z",
-            updatedAt: "2024-01-10T10:00:00Z",
-          },
-          {
-            id: "3",
-            vin: "2T1BURHE0JC123456",
-            make: "Toyota",
-            model: "Camry",
-            year: 2023,
-            color: "Black",
-            status: "IN_PROGRESS",
-            priority: "LOW",
-            createdAt: "2024-01-12T10:00:00Z",
-            updatedAt: "2024-01-12T10:00:00Z",
-          },
-        ]
-        setVehicles(mockVehicles)
-        toast.info("🚗 Using demo data - Connect your vAuto feed for live data")
+        console.error("Failed to fetch vehicles")
       }
     } catch (error) {
-      console.error("Error loading vehicles:", error)
-      toast.error("❌ Failed to load vehicle data")
+      console.error("Error fetching vehicles:", error)
     } finally {
-      setIsLoadingVehicles(false)
+      setLoading(false)
     }
   }
 
-  const filterAndSortVehicles = () => {
+  const filterAndSortVehicles = (vehicles: Vehicle[]) => {
     const filtered = vehicles.filter((vehicle) => {
-      if (statusFilter !== "all" && vehicle.status !== statusFilter) return false
-      if (makeFilter !== "all" && vehicle.make !== makeFilter) return false
-      if (priorityFilter !== "all" && vehicle.priority !== priorityFilter) return false
+      // Status filter
+      if (statusFilter !== "all" && vehicle.status !== statusFilter) {
+        return false
+      }
+
+      // Make filter
+      if (makeFilter !== "all" && vehicle.make !== makeFilter) {
+        return false
+      }
+
+      // Priority filter
+      if (priorityFilter !== "all" && vehicle.priority !== priorityFilter) {
+        return false
+      }
+
       return true
     })
 
@@ -133,7 +82,10 @@ export default function ReconCardsPage() {
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         case "priority":
           const priorityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 }
-          return priorityOrder[b.priority] - priorityOrder[a.priority]
+          return (
+            priorityOrder[b.priority as keyof typeof priorityOrder] -
+            priorityOrder[a.priority as keyof typeof priorityOrder]
+          )
         case "make":
           return a.make.localeCompare(b.make)
         case "year":
@@ -143,125 +95,64 @@ export default function ReconCardsPage() {
       }
     })
 
-    setFilteredVehicles(filtered)
+    return filtered
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return "bg-green-100 text-green-800"
-      case "PENDING":
-        return "bg-gray-100 text-gray-800"
-      case "IN_PROGRESS":
-        return "bg-blue-100 text-blue-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "HIGH":
-        return "bg-red-100 text-red-800"
-      case "MEDIUM":
-        return "bg-orange-100 text-orange-800"
-      case "LOW":
-        return "bg-blue-100 text-blue-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return <CheckCircle className="h-4 w-4" />
-      case "PENDING":
-      case "IN_PROGRESS":
-        return <Clock className="h-4 w-4" />
-      default:
-        return <Car className="h-4 w-4" />
-    }
-  }
-
-  const getProgress = (vehicle: Vehicle): number => {
-    let progress = 0
-    if (vehicle.status === "COMPLETED") progress = 100
-    if (vehicle.status === "IN_PROGRESS") progress = 50
-    if (vehicle.status === "PENDING") progress = 25
-    return progress
-  }
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-8 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
-  }
-
-  const uniqueMakes = Array.from(new Set(vehicles.map((v) => v.make))).sort()
+  const filteredVehicles = filterAndSortVehicles(vehicles)
+  const completedVehicles = vehicles.filter((v) => v.status === "COMPLETED")
+  const activeVehicles = vehicles.filter((v) => v.status !== "COMPLETED")
 
   const stats = {
     total: vehicles.length,
     pending: vehicles.filter((v) => v.status === "PENDING").length,
     inProgress: vehicles.filter((v) => v.status === "IN_PROGRESS").length,
-    completed: vehicles.filter((v) => v.status === "COMPLETED").length,
+    completed: completedVehicles.length,
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg">Loading vehicles...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      {/* Header */}
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Recon Dashboard</h1>
-          <p className="text-gray-600">Welcome back, {user?.name || user?.email}</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={loadVehicles} disabled={isLoadingVehicles}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingVehicles ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-          <CompletedVehiclesToggle
-            showCompleted={showCompleted}
-            onToggle={setShowCompleted}
-            completedCount={stats.completed}
-          />
-        </div>
+        <h1 className="text-3xl font-bold">Vehicle Recon Cards</h1>
+        <CompletedVehiclesToggle
+          showCompleted={showCompleted}
+          onToggle={setShowCompleted}
+          completedCount={completedVehicles.length}
+        />
       </div>
 
-      {/* Stats Cards */}
-      <StatsCard {...stats} />
+      <Statsummary stats={stats} />
 
-      {/* Filters */}
-      <VehicleFilters
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        makeFilter={makeFilter}
-        onMakeFilterChange={setMakeFilter}
-        priorityFilter={priorityFilter}
-        onPriorityFilterChange={setPriorityFilter}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-        vehicles={vehicles}
-      />
+      {!showCompleted ? (
+        <>
+          <VehicleFilters
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            makeFilter={makeFilter}
+            onMakeFilterChange={setMakeFilter}
+            priorityFilter={priorityFilter}
+            onPriorityFilterChange={setPriorityFilter}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+            vehicles={activeVehicles}
+          />
 
-      {/* Vehicle Cards */}
-      {showCompleted ? (
-        <CompletedVehiclesPanel
-          vehicles={vehicles.filter((v) => v.status === "COMPLETED")}
-          onClose={() => setShowCompleted(false)}
-        />
+          <VehicleGrid
+            vehicles={filteredVehicles.filter((v) => v.status !== "COMPLETED")}
+            onVehicleUpdate={fetchVehicles}
+          />
+        </>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredVehicles.length > 0 ? (
-            filteredVehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)
-          ) : (
-            <div className="col-span-full text-center py-12">
-              <p className="text-gray-500">No vehicles found matching your filters.</p>
-            </div>
-          )}
-        </div>
+        <CompletedVehiclesPanel vehicles={completedVehicles} onVehicleUpdate={fetchVehicles} />
       )}
     </div>
   )

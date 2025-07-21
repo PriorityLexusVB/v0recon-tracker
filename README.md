@@ -1,259 +1,154 @@
-# Recon Tracker Dashboard
+# Recon Tracker
 
-A comprehensive vehicle reconditioning tracking system built with Next.js, designed for automotive dealerships to manage their vehicle preparation workflow from inventory to sales-ready status.
+A comprehensive vehicle reconditioning management system built with Next.js, TypeScript, Prisma, and NextAuth.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com)
-[![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
-[![Database](https://img.shields.io/badge/Database-PostgreSQL-blue?style=for-the-badge&logo=postgresql)](https://postgresql.org)
+## Features
 
-## 🚗 Features
+- **Real-time Vehicle Tracking** - Monitor vehicle status throughout the reconditioning process
+- **Team Management** - Organize teams and assign vehicles efficiently  
+- **Performance Analytics** - Track KPIs and team performance metrics
+- **Role-Based Access** - Admin, Manager, and User roles with appropriate permissions
+- **Google Sheets Integration** - Sync inventory data seamlessly
+- **Mobile-First Design** - Responsive interface optimized for all devices
+- **Notification System** - Real-time alerts and status updates
 
-- **Real-time Vehicle Tracking**: Monitor vehicles through shop, detail, photo, and sales-ready stages
-- **Google Sheets Integration**: Seamlessly sync with vAuto inventory feeds via Google Apps Script
-- **Team Management**: Assign vehicles to teams and track individual performance
-- **Performance Analytics Dashboard**: Comprehensive reporting on recon performance and bottlenecks
-- **Role-Based Access**: Admin, Manager, and User roles with appropriate permissions
-- **Mobile-Optimized**: Responsive design works perfectly on phones and tablets
+## Tech Stack
 
-## 🛠 Technology Stack
-
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, Prisma ORM
-- **Database**: PostgreSQL (Supabase or self-hosted)
+- **Database**: PostgreSQL
 - **Authentication**: NextAuth.js
-- **UI Components**: shadcn/ui
+- **UI Components**: Radix UI, shadcn/ui
 - **Charts**: Recharts
-- **Notifications**: EmailJS, Twilio (optional)
-- **Deployment**: Vercel
+- **Deployment**: Docker, Vercel
 
-## 📋 Prerequisites
+## Quick Start
 
-Before you begin, ensure you have the following installed:
+### Prerequisites
 
-- Node.js 18.0 or later
-- pnpm package manager
-- Docker
-- PostgreSQL database (local or cloud-hosted like Supabase)
-- Google account for Sheets integration
+- Node.js 18+
+- PostgreSQL database
+- pnpm (recommended) or npm
 
-## 🚀 Quick Start
+### Installation
 
-### 1. Clone the Repository
-
-\`\`\`bash
-git clone https://github.com/PriorityLexusVB/v0recon-tracker.git
-cd v0recon-tracker
-\`\`\`
-
-### 2. Install Dependencies
-
-\`\`\`bash
-pnpm install
-\`\`\`
-
-### 3. Environment Setup
-
-Copy the example environment file and configure your variables:
-
-\`\`\`bash
-cp .env.example .env.local
-\`\`\`
-
-Edit `.env.local` with your actual values:
-
-\`\`\`env
-# Required: Database connection
-DATABASE_URL="postgresql://username:password@localhost:5432/recon_tracker"
-
-# Required: NextAuth configuration
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key-here"
-
-# Required: Google Sheets URL
-NEXT_PUBLIC_GOOGLE_SHEETS_URL="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit?usp=sharing"
-
-# Optional: EmailJS service ID
-NEXT_PUBLIC_EMAILJS_SERVICE_ID="your-emailjs-service-id"
-
-# Optional: Twilio account SID for SMS
-TWILIO_ACCOUNT_SID="your-twilio-account-sid"
-\`\`\`
-
-### 4. Database Setup
-
-Initialize and seed your database:
-
-\`\`\`bash
-# Apply database schema
-npx prisma migrate deploy
-
-# Generate Prisma client
-npx prisma generate
-
-# Seed the database with initial data
-npx prisma db seed
-\`\`\`
-
-### 5. Google Sheets Integration Setup
-
-#### Step 1: Create Your Google Sheet
-
-1. Create a new Google Sheet
-2. Create two tabs: "vAuto Feed" and "Shop Tracker"
-3. Import your vAuto inventory data into the "vAuto Feed" tab
-
-#### Step 2: Set Up Google Apps Script
-
-1. In your Google Sheet, go to `Extensions > Apps Script`
-2. Delete the default code and paste the contents of `google-sheets-script.js`
-3. Save the script with a meaningful name like "Recon Tracker Integration"
-
-#### Step 3: Configure the Script
-
-1. Run the `updateShopTrackerFromVauto()` function manually first
-2. Set up a time-based trigger to run every hour:
-   \`\`\`javascript
-   // Run this function once to set up automatic updates
-   setupTriggers()
+1. **Clone the repository**
+   \`\`\`bash
+   git clone https://github.com/PriorityLexusVB/v0recon-tracker.git
+   cd v0recon-tracker
    \`\`\`
 
-#### Step 4: Share Your Sheet
+2. **Install dependencies**
+   \`\`\`bash
+   pnpm install
+   \`\`\`
 
-1. Click "Share" in the top-right corner of your Google Sheet
-2. Change permissions to "Anyone with the link can view"
-3. Copy the sharing URL and add it to your `.env.local` file
+3. **Set up environment variables**
+   \`\`\`bash
+   cp .env.example .env.local
+   \`\`\`
+   
+   Update `.env.local` with your database URL and other configuration:
+   \`\`\`env
+   DATABASE_URL="postgresql://username:password@localhost:5432/recon_tracker"
+   NEXTAUTH_SECRET="your-secret-key-here"
+   NEXTAUTH_URL="http://localhost:3000"
+   \`\`\`
 
-### 6. Start Development Server
+4. **Set up the database**
+   \`\`\`bash
+   # Generate Prisma client
+   npx prisma generate
+   
+   # Push database schema
+   npx prisma db push
+   
+   # Seed with sample data
+   npx prisma db seed
+   \`\`\`
 
-\`\`\`bash
-pnpm dev
-\`\`\`
+5. **Start the development server**
+   \`\`\`bash
+   pnpm dev
+   \`\`\`
 
-Visit [http://localhost:3000](http://localhost:3000) to see your application.
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## 📊 Data Flow
+## Default Login Credentials
 
-\`\`\`
-vAuto Inventory → Google Sheets → Google Apps Script → Recon Tracker → PostgreSQL
-\`\`\`
+After seeding the database, you can log in with these accounts:
 
-1. **vAuto Feed**: Your inventory management system exports data to Google Sheets
-2. **Google Apps Script**: Processes and transforms data into the Shop Tracker format
-3. **Recon Tracker**: Fetches data via Google Sheets API and stores in PostgreSQL
-4. **Real-time Updates**: Users update vehicle status through the web interface
+- **Admin**: `admin@recontracker.com` / `admin123`
+- **Manager**: `manager@recontracker.com` / `manager123`
+- **User**: `shop@recontracker.com` / `user123`
 
-## 🔧 Configuration
-
-### Database Schema
-
-The application uses the following main entities:
-
-- **User**: System users with roles (ADMIN, MANAGER, USER)
-- **Team**: Departmental teams (shop, detail, photo, sales)
-- **Vehicle**: Vehicle records with status tracking
-- **VehicleAssignment**: Assignment of vehicles to teams/users
-- **Notification**: System notifications and alerts
-
-### Google Apps Script Configuration
-
-Key functions in `google-sheets-script.js`:
-
-- `updateShopTrackerFromVauto()`: Main sync function
-- `onEdit()`: Handles real-time checkbox updates
-- `setupTriggers()`: Configures automatic updates
-
-## 🚀 Deployment
+## Deployment
 
 ### Deploy to Vercel
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Configure environment variables in Vercel dashboard
-4. Deploy!
+1. **Push to GitHub**
+   \`\`\`bash
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   \`\`\`
 
-\`\`\`bash
-# Or deploy directly with Vercel CLI
-npx vercel --prod
-\`\`\`
+2. **Deploy to Vercel**
+   - Connect your GitHub repository to Vercel
+   - Set environment variables in Vercel dashboard
+   - Deploy automatically on push
 
-### Docker
+3. **Set up production database**
+   \`\`\`bash
+   # After deployment, run database migrations
+   npx prisma db push
+   npx prisma db seed
+   \`\`\`
 
-\`\`\`bash
-docker build -t recon-tracker .
-docker run -p 3000:3000 recon-tracker
-\`\`\`
+### Docker Deployment
 
-## 📱 Mobile Usage
+1. **Build the Docker image**
+   \`\`\`bash
+   docker build -t recon-tracker .
+   \`\`\`
 
-The application is fully responsive and optimized for mobile use:
+2. **Run the container**
+   \`\`\`bash
+   docker run -p 3000:3000 \
+     -e DATABASE_URL="your-production-db-url" \
+     -e NEXTAUTH_SECRET="your-secret" \
+     -e NEXTAUTH_URL="https://your-domain.com" \
+     recon-tracker
+   \`\`\`
 
-- **Touch-friendly interface**: Large buttons and easy navigation
-- **Offline capability**: Basic functionality works without internet
-- **Progressive Web App**: Can be installed on mobile devices
-- **Real-time sync**: Updates reflect immediately across all devices
+## Database Schema
 
-## 🔐 User Roles
+The application uses the following main entities:
 
-- **ADMIN**: Full system access, user management, system settings
-- **MANAGER**: Team management, vehicle assignments, reporting
-- **USER**: Vehicle status updates, basic reporting
+- **Users** - Authentication and role management
+- **Teams** - Organizational units for vehicle assignments
+- **Vehicles** - Core entity tracking reconditioning status
+- **Assignments** - Links between vehicles and teams
+- **Notifications** - System alerts and updates
 
-## 📈 Analytics & Reporting
+## API Routes
 
-Built-in analytics include:
+- `GET /api/v1/vehicles` - List all vehicles
+- `GET /api/v1/vehicles/[vin]` - Get vehicle by VIN
+- `POST /api/v1/vehicles` - Create new vehicle
+- `PUT /api/v1/vehicles/[vin]` - Update vehicle
+- `DELETE /api/v1/vehicles/[vin]` - Delete vehicle
 
-- Vehicle throughput metrics
-- Department performance tracking
-- Bottleneck identification
-- Completion time analysis
-- Custom date range reporting
+## Google Sheets Integration
 
-## 🔔 Notifications
+To enable Google Sheets integration:
 
-Configure notifications for:
+1. Create a Google Sheet with vehicle data
+2. Make it publicly viewable (or set up service account)
+3. Add the sheet URL to your environment variables
+4. Use the integration page to sync data
 
-- Vehicles overdue in recon
-- Completion milestones
-- Assignment updates
-- System alerts
-
-## 🛠 Development
-
-### Project Structure
-
-\`\`\`
-├── app/                    # Next.js app directory
-│   ├── admin/             # Admin pages
-│   ├── api/               # API routes
-│   ├── auth/              # Authentication pages
-│   └── ...
-├── components/            # React components
-├── lib/                   # Utility functions
-├── prisma/               # Database schema and migrations
-├── public/               # Static assets
-└── scripts/              # Database scripts
-\`\`\`
-
-### Available Scripts
-
-\`\`\`bash
-pnpm run dev          # Start development server
-pnpm run build        # Build for production
-pnpm run start        # Start production server
-pnpm run lint         # Run ESLint
-pnpm run type-check   # Run TypeScript checks
-\`\`\`
-
-### Database Commands
-
-\`\`\`bash
-npx prisma studio           # Open Prisma Studio
-npx prisma db push          # Push schema changes
-npx prisma migrate dev      # Create and apply migration
-npx prisma generate         # Generate Prisma client
-\`\`\`
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -261,50 +156,10 @@ npx prisma generate         # Generate Prisma client
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## Support
 
-If you encounter any issues:
-
-1. Check the [Issues](https://github.com/PriorityLexusVB/v0recon-tracker/issues) page
-2. Review the troubleshooting section below
-3. Create a new issue with detailed information
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**Google Sheets Integration Not Working**
-- Verify the sheet is publicly accessible
-- Check that the Google Apps Script is running
-- Ensure the sheet URL in environment variables is correct
-
-**Database Connection Issues**
-- Verify DATABASE_URL is correctly formatted
-- Check database server is running
-- Run `npx prisma migrate deploy` to sync schema
-
-**Authentication Problems**
-- Verify NEXTAUTH_SECRET is set
-- Check NEXTAUTH_URL matches your domain
-- Clear browser cookies and try again
-
-### Getting Help
-
-For additional support:
-- 📧 Email: support@recontracker.com
-- 💬 Discord: [Join our community](https://discord.gg/recontracker)
-- 📖 Documentation: [Full docs](https://docs.recontracker.com)
-
-## Default Users
-After seeding the database:
-- Admin: admin@recontracker.com / admin123
-- Manager: manager@recontracker.com / manager123
-- User: shop@recontracker.com / user123
-
----
-
-Built with ❤️ for automotive professionals
+For support, email support@recontracker.com or create an issue in the GitHub repository.
