@@ -1,42 +1,29 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 
 export async function getVehicleAssignments() {
   try {
-    const session = await auth()
-
-    if (!session) {
-      return { success: false, error: "Authentication required" }
-    }
-
     const assignments = await prisma.vehicleAssignment.findMany({
-      where: {
-        isActive: true,
-      },
       include: {
         vehicle: true,
         team: {
           include: {
-            users: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
         },
-        assignedToUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        assignedBy: {
+        user: {
           select: {
             id: true,
             name: true,
@@ -48,267 +35,131 @@ export async function getVehicleAssignments() {
         createdAt: "desc",
       },
     })
-
-    return { success: true, assignments }
+    return assignments
   } catch (error) {
     console.error("Error fetching vehicle assignments:", error)
-    return { success: false, error: "Failed to fetch assignments" }
+    throw new Error("Failed to fetch vehicle assignments")
   }
 }
 
-export async function assignVehicleToTeam(formData: FormData) {
+export async function assignVehicleToTeam(data: {
+  vehicleId: string
+  teamId: string
+  userId?: string
+}) {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
-    const vehicleId = formData.get("vehicleId") as string
-    const teamId = formData.get("teamId") as string
-    const userId = formData.get("userId") as string
-    const priority = formData.get("priority") as string
-    const notes = formData.get("notes") as string
-
-    if (!vehicleId || !teamId) {
-      return { success: false, error: "Vehicle and team are required" }
-    }
-
-    // Check if vehicle is already assigned
-    const existingAssignment = await prisma.vehicleAssignment.findFirst({
-      where: {
-        vehicleId,
-        isActive: true,
-      },
-    })
-
-    if (existingAssignment) {
-      return { success: false, error: "Vehicle is already assigned" }
-    }
-
-    // Verify the vehicle exists
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id: vehicleId },
-    })
-
-    if (!vehicle) {
-      return { success: false, error: "Vehicle not found" }
-    }
-
-    // Verify the team exists
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    })
-
-    if (!team) {
-      return { success: false, error: "Team not found" }
-    }
-
-    // If userId is provided, verify the user exists and is in the team
-    if (userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      })
-
-      if (!user) {
-        return { success: false, error: "User not found" }
-      }
-
-      const teamMember = await prisma.teamMember.findFirst({
-        where: {
-          teamId,
-          userId,
-          isActive: true,
-        },
-      })
-
-      if (!teamMember) {
-        return { success: false, error: "User is not a member of the selected team" }
-      }
-    }
-
     const assignment = await prisma.vehicleAssignment.create({
       data: {
-        vehicleId,
-        teamId,
-        assignedToUserId: userId || null,
-        priority: priority || "normal",
-        notes: notes || null,
-        assignedById: session.user.id,
-        isActive: true,
+        vehicleId: data.vehicleId,
+        teamId: data.teamId,
+        userId: data.userId,
+        status: "ASSIGNED",
+      },
+      include: {
+        vehicle: true,
+        team: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     })
 
     // Update vehicle status
     await prisma.vehicle.update({
-      where: { id: vehicleId },
-      data: {
-        status: "ASSIGNED",
-        assignedTo: userId || null,
-        updatedAt: new Date(),
-      },
+      where: { id: data.vehicleId },
+      data: { status: "ASSIGNED" },
     })
 
     revalidatePath("/admin/assignments")
     revalidatePath("/recon/cards")
     return { success: true, assignment }
   } catch (error) {
-    console.error("Error assigning vehicle:", error)
-    return { success: false, error: "Failed to assign vehicle" }
+    console.error("Error assigning vehicle to team:", error)
+    return { success: false, error: "Failed to assign vehicle to team" }
   }
 }
 
-export async function updateVehicleAssignment(assignmentId: string, formData: FormData) {
+export async function updateAssignmentStatus(id: string, status: string) {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
-    const teamId = formData.get("teamId") as string
-    const userId = formData.get("userId") as string
-    const priority = formData.get("priority") as string
-    const notes = formData.get("notes") as string
-
     const assignment = await prisma.vehicleAssignment.update({
-      where: { id: assignmentId },
-      data: {
-        teamId: teamId || undefined,
-        assignedToUserId: userId || null,
-        priority: priority || "normal",
-        notes: notes || null,
-        updatedAt: new Date(),
+      where: { id },
+      data: { status },
+      include: {
+        vehicle: true,
+        team: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     })
 
-    // Update vehicle assignment
-    if (userId) {
-      await prisma.vehicle.update({
-        where: { id: assignment.vehicleId },
-        data: {
-          assignedTo: userId,
-          updatedAt: new Date(),
-        },
-      })
-    }
+    // Update vehicle status based on assignment status
+    let vehicleStatus = "PENDING"
+    if (status === "IN_PROGRESS") vehicleStatus = "IN_PROGRESS"
+    if (status === "COMPLETED") vehicleStatus = "COMPLETED"
+
+    await prisma.vehicle.update({
+      where: { id: assignment.vehicleId },
+      data: { status: vehicleStatus },
+    })
 
     revalidatePath("/admin/assignments")
     revalidatePath("/recon/cards")
     return { success: true, assignment }
   } catch (error) {
-    console.error("Error updating assignment:", error)
-    return { success: false, error: "Failed to update assignment" }
+    console.error("Error updating assignment status:", error)
+    return { success: false, error: "Failed to update assignment status" }
   }
 }
 
-export async function removeVehicleAssignment(assignmentId: string) {
+export async function deleteAssignment(id: string) {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
     const assignment = await prisma.vehicleAssignment.findUnique({
-      where: { id: assignmentId },
+      where: { id },
+      include: { vehicle: true },
     })
 
     if (!assignment) {
       return { success: false, error: "Assignment not found" }
     }
 
-    // Deactivate the assignment
-    await prisma.vehicleAssignment.update({
-      where: { id: assignmentId },
-      data: {
-        isActive: false,
-        updatedAt: new Date(),
-      },
+    await prisma.vehicleAssignment.delete({
+      where: { id },
     })
 
-    // Update vehicle status
+    // Reset vehicle status to pending
     await prisma.vehicle.update({
       where: { id: assignment.vehicleId },
-      data: {
-        status: "PENDING",
-        assignedTo: null,
-        updatedAt: new Date(),
-      },
+      data: { status: "PENDING" },
     })
 
     revalidatePath("/admin/assignments")
     revalidatePath("/recon/cards")
     return { success: true }
   } catch (error) {
-    console.error("Error removing assignment:", error)
-    return { success: false, error: "Failed to remove assignment" }
-  }
-}
-
-export async function getTeamsForAssignment() {
-  try {
-    const session = await auth()
-
-    if (!session) {
-      return { success: false, error: "Authentication required" }
-    }
-
-    const teams = await prisma.team.findMany({
-      where: {
-        isActive: true,
-      },
-      include: {
-        users: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-      orderBy: {
-        name: "asc",
-      },
-    })
-
-    return { success: true, teams }
-  } catch (error) {
-    console.error("Error fetching teams for assignment:", error)
-    return { success: false, error: "Failed to fetch teams" }
-  }
-}
-
-export async function getUnassignedVehicles() {
-  try {
-    const session = await auth()
-
-    if (!session) {
-      return { success: false, error: "Authentication required" }
-    }
-
-    const vehicles = await prisma.vehicle.findMany({
-      where: {
-        OR: [
-          { status: "PENDING" },
-          {
-            vehicleAssignments: {
-              none: {
-                isActive: true,
-              },
-            },
-          },
-        ],
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    })
-
-    return { success: true, vehicles }
-  } catch (error) {
-    console.error("Error fetching unassigned vehicles:", error)
-    return { success: false, error: "Failed to fetch vehicles" }
+    console.error("Error deleting assignment:", error)
+    return { success: false, error: "Failed to delete assignment" }
   }
 }

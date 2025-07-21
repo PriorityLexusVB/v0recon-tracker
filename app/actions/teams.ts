@@ -1,30 +1,27 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 
 export async function getTeams() {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
     const teams = await prisma.team.findMany({
       include: {
-        users: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
           },
         },
-        _count: {
-          select: {
-            vehicleAssignments: true,
+        assignments: {
+          include: {
+            vehicle: true,
           },
         },
       },
@@ -32,61 +29,38 @@ export async function getTeams() {
         createdAt: "desc",
       },
     })
-
-    const formattedTeams = teams.map((team) => ({
-      id: team.id,
-      name: team.name,
-      description: team.description,
-      department: team.department,
-      isActive: team.isActive,
-      users: team.users,
-      vehicleCount: team._count.vehicleAssignments,
-    }))
-
-    return { success: true, teams: formattedTeams }
+    return teams
   } catch (error) {
     console.error("Error fetching teams:", error)
-    return { success: false, error: "Failed to fetch teams" }
+    throw new Error("Failed to fetch teams")
   }
 }
 
-export async function createTeam(formData: FormData) {
+export async function createTeam(data: { name: string; description?: string }) {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
-    const name = formData.get("name") as string
-    const description = formData.get("description") as string
-    const department = formData.get("department") as string
-
-    if (!name || !department) {
-      return { success: false, error: "Name and department are required" }
-    }
-
-    // Check if team name already exists
-    const existingTeam = await prisma.team.findFirst({
-      where: {
-        name: {
-          equals: name,
-          mode: "insensitive",
-        },
-      },
-    })
-
-    if (existingTeam) {
-      return { success: false, error: "Team name already exists" }
-    }
-
     const team = await prisma.team.create({
       data: {
-        name,
-        description: description || null,
-        department,
-        isActive: true,
-        createdBy: session.user.id,
+        name: data.name,
+        description: data.description,
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+        assignments: {
+          include: {
+            vehicle: true,
+          },
+        },
       },
     })
 
@@ -98,31 +72,32 @@ export async function createTeam(formData: FormData) {
   }
 }
 
-export async function updateTeam(teamId: string, formData: FormData) {
+export async function updateTeam(id: string, data: { name: string; description?: string }) {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
-    const name = formData.get("name") as string
-    const description = formData.get("description") as string
-    const department = formData.get("department") as string
-    const isActive = formData.get("isActive") === "true"
-
-    if (!name || !department) {
-      return { success: false, error: "Name and department are required" }
-    }
-
     const team = await prisma.team.update({
-      where: { id: teamId },
+      where: { id },
       data: {
-        name,
-        description: description || null,
-        department,
-        isActive,
-        updatedAt: new Date(),
+        name: data.name,
+        description: data.description,
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+        assignments: {
+          include: {
+            vehicle: true,
+          },
+        },
       },
     })
 
@@ -134,28 +109,10 @@ export async function updateTeam(teamId: string, formData: FormData) {
   }
 }
 
-export async function deleteTeam(teamId: string) {
+export async function deleteTeam(id: string) {
   try {
-    const session = await auth()
-
-    if (!session || session.user.role !== "ADMIN") {
-      return { success: false, error: "Admin access required" }
-    }
-
-    // Check if team has active assignments
-    const activeAssignments = await prisma.vehicleAssignment.count({
-      where: {
-        teamId,
-        isActive: true,
-      },
-    })
-
-    if (activeAssignments > 0) {
-      return { success: false, error: "Cannot delete team with active vehicle assignments" }
-    }
-
     await prisma.team.delete({
-      where: { id: teamId },
+      where: { id },
     })
 
     revalidatePath("/admin/teams")
@@ -166,67 +123,49 @@ export async function deleteTeam(teamId: string) {
   }
 }
 
-export async function addUserToTeam(teamId: string, userId: string) {
+export async function addTeamMember(teamId: string, userId: string, role = "MEMBER") {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
-    // Check if user is already in a team
-    const existingMembership = await prisma.teamMember.findFirst({
-      where: {
-        userId,
-        isActive: true,
-      },
-    })
-
-    if (existingMembership) {
-      return { success: false, error: "User is already assigned to a team" }
-    }
-
     const teamMember = await prisma.teamMember.create({
       data: {
         teamId,
         userId,
-        isActive: true,
-        assignedBy: session.user.id,
+        role,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
       },
     })
 
     revalidatePath("/admin/teams")
     return { success: true, teamMember }
   } catch (error) {
-    console.error("Error adding user to team:", error)
-    return { success: false, error: "Failed to add user to team" }
+    console.error("Error adding team member:", error)
+    return { success: false, error: "Failed to add team member" }
   }
 }
 
-export async function removeUserFromTeam(teamId: string, userId: string) {
+export async function removeTeamMember(teamId: string, userId: string) {
   try {
-    const session = await auth()
-
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-      return { success: false, error: "Unauthorized access" }
-    }
-
-    await prisma.teamMember.updateMany({
+    await prisma.teamMember.delete({
       where: {
-        teamId,
-        userId,
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-        updatedAt: new Date(),
+        userId_teamId: {
+          userId,
+          teamId,
+        },
       },
     })
 
     revalidatePath("/admin/teams")
     return { success: true }
   } catch (error) {
-    console.error("Error removing user from team:", error)
-    return { success: false, error: "Failed to remove user from team" }
+    console.error("Error removing team member:", error)
+    return { success: false, error: "Failed to remove team member" }
   }
 }

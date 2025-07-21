@@ -11,15 +11,13 @@ A comprehensive vehicle reconditioning tracking system built with Next.js, desig
 - **Real-time Vehicle Tracking**: Monitor vehicles through shop, detail, photo, and sales-ready stages
 - **Google Sheets Integration**: Seamlessly sync with vAuto inventory feeds via Google Apps Script
 - **Team Management**: Assign vehicles to teams and track individual performance
-- **Mobile-Optimized**: Responsive design works perfectly on phones and tablets
-- **Analytics Dashboard**: Comprehensive reporting on recon performance and bottlenecks
-- **Notification System**: Email and SMS alerts for overdue vehicles and milestones
+- **Performance Analytics Dashboard**: Comprehensive reporting on recon performance and bottlenecks
 - **Role-Based Access**: Admin, Manager, and User roles with appropriate permissions
-- **Timeline Tracking**: Visual timeline of each vehicle's recon journey
+- **Mobile-Optimized**: Responsive design works perfectly on phones and tablets
 
 ## 🛠 Technology Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, Prisma ORM
 - **Database**: PostgreSQL (Supabase or self-hosted)
 - **Authentication**: NextAuth.js
@@ -33,7 +31,8 @@ A comprehensive vehicle reconditioning tracking system built with Next.js, desig
 Before you begin, ensure you have the following installed:
 
 - Node.js 18.0 or later
-- npm or yarn package manager
+- pnpm package manager
+- Docker
 - PostgreSQL database (local or cloud-hosted like Supabase)
 - Google account for Sheets integration
 
@@ -42,16 +41,14 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 \`\`\`bash
-git clone https://github.com/your-username/recon-tracker-dashboard.git
-cd recon-tracker-dashboard
+git clone https://github.com/PriorityLexusVB/v0recon-tracker.git
+cd v0recon-tracker
 \`\`\`
 
 ### 2. Install Dependencies
 
 \`\`\`bash
-npm install
-# or
-yarn install
+pnpm install
 \`\`\`
 
 ### 3. Environment Setup
@@ -74,6 +71,12 @@ NEXTAUTH_SECRET="your-secret-key-here"
 
 # Required: Google Sheets URL
 NEXT_PUBLIC_GOOGLE_SHEETS_URL="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit?usp=sharing"
+
+# Optional: EmailJS service ID
+NEXT_PUBLIC_EMAILJS_SERVICE_ID="your-emailjs-service-id"
+
+# Optional: Twilio account SID for SMS
+TWILIO_ACCOUNT_SID="your-twilio-account-sid"
 \`\`\`
 
 ### 4. Database Setup
@@ -81,11 +84,11 @@ NEXT_PUBLIC_GOOGLE_SHEETS_URL="https://docs.google.com/spreadsheets/d/YOUR_SHEET
 Initialize and seed your database:
 
 \`\`\`bash
+# Apply database schema
+npx prisma migrate deploy
+
 # Generate Prisma client
 npx prisma generate
-
-# Run database migrations
-npx prisma db push
 
 # Seed the database with initial data
 npx prisma db seed
@@ -123,9 +126,7 @@ npx prisma db seed
 ### 6. Start Development Server
 
 \`\`\`bash
-npm run dev
-# or
-yarn dev
+pnpm dev
 \`\`\`
 
 Visit [http://localhost:3000](http://localhost:3000) to see your application.
@@ -161,17 +162,6 @@ Key functions in `google-sheets-script.js`:
 - `onEdit()`: Handles real-time checkbox updates
 - `setupTriggers()`: Configures automatic updates
 
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `NEXTAUTH_URL` | Application URL for NextAuth | Yes |
-| `NEXTAUTH_SECRET` | Secret key for NextAuth | Yes |
-| `NEXT_PUBLIC_GOOGLE_SHEETS_URL` | Google Sheets sharing URL | Yes |
-| `NEXT_PUBLIC_EMAILJS_SERVICE_ID` | EmailJS service ID | No |
-| `TWILIO_ACCOUNT_SID` | Twilio account SID for SMS | No |
-
 ## 🚀 Deployment
 
 ### Deploy to Vercel
@@ -186,16 +176,11 @@ Key functions in `google-sheets-script.js`:
 npx vercel --prod
 \`\`\`
 
-### Database Migration
-
-For production deployment:
+### Docker
 
 \`\`\`bash
-# Run migrations
-npx prisma migrate deploy
-
-# Generate client
-npx prisma generate
+docker build -t recon-tracker .
+docker run -p 3000:3000 recon-tracker
 \`\`\`
 
 ## 📱 Mobile Usage
@@ -252,11 +237,11 @@ Configure notifications for:
 ### Available Scripts
 
 \`\`\`bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run type-check   # Run TypeScript checks
+pnpm run dev          # Start development server
+pnpm run build        # Build for production
+pnpm run start        # Start production server
+pnpm run lint         # Run ESLint
+pnpm run type-check   # Run TypeScript checks
 \`\`\`
 
 ### Database Commands
@@ -284,7 +269,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you encounter any issues:
 
-1. Check the [Issues](https://github.com/your-username/recon-tracker-dashboard/issues) page
+1. Check the [Issues](https://github.com/PriorityLexusVB/v0recon-tracker/issues) page
 2. Review the troubleshooting section below
 3. Create a new issue with detailed information
 
@@ -300,7 +285,7 @@ If you encounter any issues:
 **Database Connection Issues**
 - Verify DATABASE_URL is correctly formatted
 - Check database server is running
-- Run `npx prisma db push` to sync schema
+- Run `npx prisma migrate deploy` to sync schema
 
 **Authentication Problems**
 - Verify NEXTAUTH_SECRET is set
@@ -313,6 +298,12 @@ For additional support:
 - 📧 Email: support@recontracker.com
 - 💬 Discord: [Join our community](https://discord.gg/recontracker)
 - 📖 Documentation: [Full docs](https://docs.recontracker.com)
+
+## Default Users
+After seeding the database:
+- Admin: admin@recontracker.com / admin123
+- Manager: manager@recontracker.com / manager123
+- User: shop@recontracker.com / user123
 
 ---
 
