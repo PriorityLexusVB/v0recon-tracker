@@ -2,47 +2,64 @@
 
 import type React from "react"
 
-import { useState, useTransition } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Mail } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState("")
-  const [isPending, startTransition] = useTransition()
+  const [isError, setIsError] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    startTransition(() => {
-      // Mock forgot password functionality
-      if (!email) {
-        setMessage("Email is required")
-        return
-      }
+    setIsSubmitting(true)
+    setMessage("")
+    setIsError(false)
 
-      // Simulate API call
-      setTimeout(() => {
-        setMessage("Password reset link sent to your email")
-      }, 1000)
-    })
+    try {
+      // In a real application, you would send an email with a reset token
+      // This is a mock API call
+      const response = await fetch("/api/notifications/email/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ to: email, token: "mock-reset-token-123" }), // Mock token
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setMessage("If an account with that email exists, a password reset link has been sent.")
+        toast.success("Password reset email sent (if account exists).")
+      } else {
+        setMessage(data.error || "Failed to send password reset email. Please try again.")
+        setIsError(true)
+        toast.error(data.error || "Failed to send password reset email.")
+      }
+    } catch (error) {
+      console.error("Forgot password error:", error)
+      setMessage("An unexpected error occurred. Please try again.")
+      setIsError(true)
+      toast.error("An unexpected error occurred.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center w-12 h-12 mx-auto bg-blue-100 rounded-full mb-4">
-            <Mail className="w-6 h-6 text-blue-600" />
-          </div>
-          <CardTitle className="text-2xl font-bold text-center">Forgot Password</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email address and we'll send you a link to reset your password.
-          </CardDescription>
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">Forgot Password</CardTitle>
+          <CardDescription>Enter your email to receive a password reset link.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -50,33 +67,29 @@ export default function ForgotPasswordPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                name="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="m@example.com"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isPending}
               />
             </div>
-
-            {message && (
-              <Alert className={message.includes("sent") ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-                <AlertDescription className={message.includes("sent") ? "text-green-800" : "text-red-800"}>
-                  {message}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Sending..." : "Send Reset Link"}
+            {message && <p className={`text-sm ${isError ? "text-red-500" : "text-green-600"}`}>{message}</p>}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Send Reset Link"
+              )}
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <Link href="/auth/signin" className="inline-flex items-center text-sm text-blue-600 hover:text-blue-500">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back to Sign In
+          <div className="mt-4 text-center text-sm">
+            Remember your password?{" "}
+            <Link href="/auth/signin" className="underline">
+              Sign In
             </Link>
           </div>
         </CardContent>

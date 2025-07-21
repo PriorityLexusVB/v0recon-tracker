@@ -1,47 +1,58 @@
 "use client"
 
-import { Line, LineChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
-interface PerformanceChartProps {
-  data: { date: string; count: number }[]
+interface PerformanceData {
+  name: string
+  completed: number
+  inProgress: number
+  overdue: number
 }
 
-export default function PerformanceChart({ data }: PerformanceChartProps) {
-  const chartData = data.map((item) => ({
-    ...item,
-    displayDate: new Date(item.date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    }),
-  }))
+interface PerformanceChartProps {
+  data: PerformanceData[]
+}
 
+export function PerformanceChart({ data }: PerformanceChartProps) {
   return (
-    <ChartContainer
-      config={{
-        count: {
-          label: "Completions",
-          color: "hsl(var(--chart-1))",
-        },
-      }}
-      className="h-[300px]"
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="displayDate" fontSize={12} tickLine={false} axisLine={false} />
-          <YAxis fontSize={12} tickLine={false} axisLine={false} />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Line
-            type="monotone"
-            dataKey="count"
-            stroke="var(--color-count)"
-            strokeWidth={2}
-            dot={{ fill: "var(--color-count)", strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+    <Card>
+      <CardHeader>
+        <CardTitle>Assignment Status Overview</CardTitle>
+        <CardDescription>Breakdown of vehicle assignments by status</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer
+          config={{
+            completed: {
+              label: "Completed",
+              color: "hsl(var(--chart-1))",
+            },
+            inProgress: {
+              label: "In Progress",
+              color: "hsl(var(--chart-2))",
+            },
+            overdue: {
+              label: "Overdue",
+              color: "hsl(var(--chart-3))",
+            },
+          }}
+          className="h-[350px]"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="completed" fill="var(--color-completed)" name="Completed" />
+              <Bar dataKey="inProgress" fill="var(--color-inProgress)" name="In Progress" />
+              <Bar dataKey="overdue" fill="var(--color-overdue)" name="Overdue" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </CardContent>
+    </Card>
   )
 }

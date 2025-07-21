@@ -1,175 +1,139 @@
 "use client"
 
-import { useState } from "react"
-import { useTimelineStore } from "@/lib/timeline-store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import type React from "react"
+
+import { useEffect, useState, useTransition } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Settings, Target, RotateCcw, Save, Bell } from "lucide-react"
-import NotificationSettingsModal from "@/components/notifications/notification-settings-modal"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { getSystemSettings, updateSystemSetting } from "@/app/actions/settings"
 
-export default function TimelineGoalsSettings() {
-  const { goals, updateGoals, resetGoalsToDefaults } = useTimelineStore()
-  const [localGoals, setLocalGoals] = useState(goals)
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false)
+interface SystemSettings {
+  max_days_in_shop: number
+  max_days_in_detail: number
+  max_days_in_photo: number
+}
 
-  const handleSave = () => {
-    updateGoals(localGoals)
+export function TimelineGoalsSettings() {
+  const [settings, setSettings] = useState<SystemSettings>({
+    max_days_in_shop: 0,
+    max_days_in_detail: 0,
+    max_days_in_photo: 0,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    setIsLoading(true)
+    try {
+      const fetchedSettings = await getSystemSettings()
+      setSettings({
+        max_days_in_shop: Number.parseInt(fetchedSettings.find((s) => s.key === "max_days_in_shop")?.value || "0"),
+        max_days_in_detail: Number.parseInt(fetchedSettings.find((s) => s.key === "max_days_in_detail")?.value || "0"),
+        max_days_in_photo: Number.parseInt(fetchedSettings.find((s) => s.key === "max_days_in_photo")?.value || "0"),
+      })
+    } catch (error) {
+      console.error("Failed to fetch system settings:", error)
+      toast.error("Failed to load timeline goals.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleReset = () => {
-    resetGoalsToDefaults()
-    setLocalGoals(useTimelineStore.getState().goals)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target
+    setSettings((prev) => ({
+      ...prev,
+      [id]: Number.parseInt(value) || 0,
+    }))
   }
 
-  const updateGoal = (step: keyof typeof localGoals, field: "target" | "warning", value: number) => {
-    setLocalGoals({
-      ...localGoals,
-      [step]: {
-        ...localGoals[step],
-        [field]: value,
-      },
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    startTransition(async () => {
+      try {
+        await updateSystemSetting("max_days_in_shop", settings.max_days_in_shop.toString())
+        await updateSystemSetting("max_days_in_detail", settings.max_days_in_detail.toString())
+        await updateSystemSetting("max_days_in_photo", settings.max_days_in_photo.toString())
+        toast.success("Timeline goals updated successfully!")
+      } catch (error) {
+        console.error("Failed to update timeline goals:", error)
+        toast.error("Failed to update timeline goals.")
+      }
     })
   }
 
-  const hasChanges = JSON.stringify(localGoals) !== JSON.stringify(goals)
-
-  return (
-    <>
+  if (isLoading) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Timeline Goals & Alerts
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Notification Settings Button */}
-          <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <div>
-              <h3 className="font-semibold text-blue-900">Notification Settings</h3>
-              <p className="text-sm text-blue-700">Configure email, SMS, and webhook alerts for timeline issues</p>
-            </div>
-            <Button onClick={() => setShowNotificationSettings(true)} className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Configure Alerts
-            </Button>
-          </div>
-
-          {/* Goals Configuration */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Step Targets (Days)
-            </h3>
-
-            <div className="grid gap-4">
-              {Object.entries(localGoals).map(([step, config]) => (
-                <div key={step} className="p-4 border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium capitalize flex items-center gap-2">
-                      {step === "shop" && "🔧"}
-                      {step === "detail" && "✨"}
-                      {step === "photo" && "📸"}
-                      {step === "total" && "📊"}
-                      {step.charAt(0).toUpperCase() + step.slice(1)}
-                      {step === "total" && <Badge variant="secondary">Overall</Badge>}
-                    </h4>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`${step}-target`} className="text-sm font-medium">
-                        Target Days
-                      </Label>
-                      <Input
-                        id={`${step}-target`}
-                        type="number"
-                        min="1"
-                        max="30"
-                        value={config.target}
-                        onChange={(e) => updateGoal(step as keyof typeof localGoals, "target", Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`${step}-warning`} className="text-sm font-medium">
-                        Warning Threshold (%)
-                      </Label>
-                      <Input
-                        id={`${step}-warning`}
-                        type="number"
-                        min="50"
-                        max="100"
-                        value={config.warning}
-                        onChange={(e) => updateGoal(step as keyof typeof localGoals, "warning", Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                    Warning at {Math.round((config.target * config.warning) / 100)} days • Target: {config.target} days
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Goal Achievement Metrics */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">How Goals Work</h3>
-            <div className="grid gap-3 text-sm">
-              <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                <div className="w-3 h-3 bg-green-500 rounded-full mt-1 flex-shrink-0"></div>
-                <div>
-                  <strong className="text-green-800">On Track</strong>
-                  <p className="text-green-700">Vehicle is progressing within the warning threshold</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full mt-1 flex-shrink-0"></div>
-                <div>
-                  <strong className="text-yellow-800">At Risk</strong>
-                  <p className="text-yellow-700">Vehicle has exceeded the warning threshold but not the target</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="w-3 h-3 bg-red-500 rounded-full mt-1 flex-shrink-0"></div>
-                <div>
-                  <strong className="text-red-800">Overdue</strong>
-                  <p className="text-red-700">
-                    Vehicle has exceeded the target timeline and requires immediate attention
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            <Button variant="outline" onClick={handleReset} className="flex items-center gap-2 bg-transparent">
-              <RotateCcw className="h-4 w-4" />
-              Reset to Defaults
-            </Button>
-            <Button onClick={handleSave} disabled={!hasChanges} className="flex items-center gap-2">
-              <Save className="h-4 w-4" />
-              {hasChanges ? "Save Changes" : "No Changes"}
-            </Button>
-          </div>
+        <CardContent className="pt-6 flex items-center justify-center h-32">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="ml-4 text-gray-600">Loading goals...</p>
         </CardContent>
       </Card>
+    )
+  }
 
-      {/* Notification Settings Modal */}
-      {showNotificationSettings && <NotificationSettingsModal onClose={() => setShowNotificationSettings(false)} />}
-    </>
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Timeline Goals</CardTitle>
+        <CardDescription>Set target days for each reconditioning stage.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="max_days_in_shop">Max Days in Shop</Label>
+            <Input
+              id="max_days_in_shop"
+              type="number"
+              value={settings.max_days_in_shop}
+              onChange={handleChange}
+              min="0"
+              disabled={isPending}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="max_days_in_detail">Max Days in Detail</Label>
+            <Input
+              id="max_days_in_detail"
+              type="number"
+              value={settings.max_days_in_detail}
+              onChange={handleChange}
+              min="0"
+              disabled={isPending}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="max_days_in_photo">Max Days in Photo</Label>
+            <Input
+              id="max_days_in_photo"
+              type="number"
+              value={settings.max_days_in_photo}
+              onChange={handleChange}
+              min="0"
+              disabled={isPending}
+            />
+          </div>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Goals"
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

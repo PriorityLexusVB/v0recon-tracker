@@ -1,8 +1,6 @@
 "use server"
 
 import { signIn, signOut } from "@/lib/auth"
-import { AuthError } from "next-auth"
-import { redirect } from "next/navigation"
 import bcrypt from "bcryptjs"
 import prisma from "@/lib/prisma"
 import { SignUpSchema, ForgotPasswordSchema, ResetPasswordSchema } from "@/lib/definitions"
@@ -11,17 +9,10 @@ import crypto from "crypto"
 
 export async function authenticate(prevState: string | undefined, formData: FormData) {
   try {
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-
-    await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    })
+    await signIn("credentials", formData)
   } catch (error) {
-    if (error instanceof AuthError) {
-      switch (error.type) {
+    if (error instanceof Error) {
+      switch (error.message) {
         case "CredentialsSignin":
           return "Invalid credentials."
         default:
@@ -30,7 +21,6 @@ export async function authenticate(prevState: string | undefined, formData: Form
     }
     throw error
   }
-  redirect("/")
 }
 
 export async function signUp(prevState: string | undefined, formData: FormData) {
@@ -193,6 +183,6 @@ export async function resetPassword(prevState: string | undefined, formData: For
   }
 }
 
-export async function signOutAction() {
+export async function logout() {
   await signOut()
 }

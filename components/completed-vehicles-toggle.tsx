@@ -1,27 +1,60 @@
 "use client"
 
-import { useVehicleStore } from "@/lib/vehicle-store"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Eye, EyeOff } from "lucide-react"
+import { CheckCircle, XCircle } from "lucide-react"
+import { toast } from "sonner"
+import { updateVehicleStatus } from "@/app/actions/vehicles"
+import { Loader2 } from "lucide-react" // Import Loader2
 
-export default function CompletedVehiclesToggle() {
-  const { filters, setFilters, stats } = useVehicleStore()
+interface CompletedVehiclesToggleProps {
+  vehicleId: string
+  initialStatus: boolean
+  onStatusChange?: (newStatus: boolean) => void
+}
+
+export function CompletedVehiclesToggle({ vehicleId, initialStatus, onStatusChange }: CompletedVehiclesToggleProps) {
+  const [isCompleted, setIsCompleted] = useState(initialStatus)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleToggle = async () => {
+    setIsLoading(true)
+    const newStatus = !isCompleted
+    try {
+      const result = await updateVehicleStatus(vehicleId, newStatus ? "COMPLETED" : "SALES_READY")
+      if (result.success) {
+        setIsCompleted(newStatus)
+        onStatusChange?.(newStatus)
+        toast.success(`Vehicle marked as ${newStatus ? "completed" : "sales ready"}.`)
+      } else {
+        toast.error(result.message || "Failed to update vehicle status.")
+      }
+    } catch (error) {
+      console.error("Error updating vehicle status:", error)
+      toast.error("An unexpected error occurred.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant={filters.showCompleted ? "default" : "outline"}
-        size="sm"
-        onClick={() => setFilters({ showCompleted: !filters.showCompleted })}
-        className="flex items-center gap-2"
-      >
-        {filters.showCompleted ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-        {filters.showCompleted ? "Hide" : "Show"} Completed
-        <Badge variant="secondary" className="ml-1">
-          {stats.completed}
-        </Badge>
-      </Button>
-    </div>
+    <Button
+      variant={isCompleted ? "default" : "outline"}
+      onClick={handleToggle}
+      disabled={isLoading}
+      className="w-full"
+    >
+      {isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isCompleted ? (
+        <>
+          <CheckCircle className="mr-2 h-4 w-4" /> Marked Completed
+        </>
+      ) : (
+        <>
+          <XCircle className="mr-2 h-4 w-4" /> Mark as Completed
+        </>
+      )}
+    </Button>
   )
 }

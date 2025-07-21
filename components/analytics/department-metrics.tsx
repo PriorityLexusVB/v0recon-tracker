@@ -1,108 +1,77 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { AlertTriangle, CheckCircle, Clock } from "lucide-react"
-import type { AnalyticsData } from "@/lib/analytics-store"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Users, Clock, TrendingUp } from "lucide-react"
 
-interface DepartmentMetricsProps {
-  analytics: AnalyticsData
+interface DepartmentMetric {
+  department: string
+  avgCompletionTime: number
+  completionRate: number
+  totalAssignments: number
 }
 
-export default function DepartmentMetrics({ analytics }: DepartmentMetricsProps) {
-  const departments = [
-    {
-      name: "Shop",
-      data: analytics.stepPerformance.shop,
-      metrics: analytics.departmentMetrics.shop,
-      color: "blue",
-    },
-    {
-      name: "Detail",
-      data: analytics.stepPerformance.detail,
-      metrics: analytics.departmentMetrics.detail,
-      color: "green",
-    },
-    {
-      name: "Photo",
-      data: analytics.stepPerformance.photo,
-      metrics: analytics.departmentMetrics.photo,
-      color: "purple",
-    },
-  ]
+interface DepartmentMetricsProps {
+  data: DepartmentMetric[]
+}
+
+export function DepartmentMetrics({ data }: DepartmentMetricsProps) {
+  const chartData = data.map((d) => ({
+    name: d.department,
+    "Avg Time": d.avgCompletionTime,
+    "Completion Rate": d.completionRate,
+  }))
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="h-5 w-5" />
-          Department Performance
-        </CardTitle>
+        <CardTitle>Department Performance Metrics</CardTitle>
+        <CardDescription>Average completion time and rate by department</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {departments.map((dept) => (
-            <div key={dept.name} className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">{dept.name}</h3>
-                {dept.metrics.bottleneck ? (
-                  <Badge variant="destructive" className="flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    Bottleneck
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    On Track
-                  </Badge>
-                )}
+        <ChartContainer
+          config={{
+            "Avg Time": {
+              label: "Avg. Completion Time (Days)",
+              color: "hsl(var(--chart-1))",
+            },
+            "Completion Rate": {
+              label: "Completion Rate (%)",
+              color: "hsl(var(--chart-2))",
+            },
+          }}
+          className="h-[350px]"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis yAxisId="left" orientation="left" stroke="var(--color-Avg-Time)" />
+              <YAxis yAxisId="right" orientation="right" stroke="var(--color-Completion-Rate)" />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar yAxisId="left" dataKey="Avg Time" fill="var(--color-Avg-Time)" />
+              <Bar yAxisId="right" dataKey="Completion Rate" fill="var(--color-Completion-Rate)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          {data.map((metric) => (
+            <Card key={metric.department} className="p-4">
+              <h3 className="font-semibold text-lg capitalize">{metric.department}</h3>
+              <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                <Clock className="h-4 w-4" />
+                <span>Avg Time: {metric.avgCompletionTime.toFixed(1)} days</span>
               </div>
-
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Completed</span>
-                    <span>{dept.data.completed}</span>
-                  </div>
-                  <Progress value={(dept.data.completed / analytics.totalVehicles) * 100} className="h-2" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Avg. Time</p>
-                    <p className="font-semibold">{dept.metrics.efficiency} days</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Overdue</p>
-                    <p className={`font-semibold ${dept.data.overdue > 0 ? "text-red-600" : "text-green-600"}`}>
-                      {dept.data.overdue}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Efficiency Score</span>
-                    <span
-                      className={`font-medium ${
-                        dept.metrics.efficiency <= 3
-                          ? "text-green-600"
-                          : dept.metrics.efficiency <= 5
-                            ? "text-yellow-600"
-                            : "text-red-600"
-                      }`}
-                    >
-                      {dept.metrics.efficiency <= 3
-                        ? "Excellent"
-                        : dept.metrics.efficiency <= 5
-                          ? "Good"
-                          : "Needs Improvement"}
-                    </span>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <TrendingUp className="h-4 w-4" />
+                <span>Rate: {metric.completionRate.toFixed(1)}%</span>
               </div>
-            </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Users className="h-4 w-4" />
+                <span>Assignments: {metric.totalAssignments}</span>
+              </div>
+            </Card>
           ))}
         </div>
       </CardContent>

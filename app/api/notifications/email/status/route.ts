@@ -1,29 +1,28 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, status, vehicleInfo } = await request.json()
+    const { notificationId, status } = await request.json()
 
-    const notification = {
-      to: email,
-      subject: `Vehicle Status Update - ${vehicleInfo?.vin || "Unknown"}`,
-      message: `Vehicle status has been updated to: ${status}. Vehicle: ${vehicleInfo?.year || ""} ${vehicleInfo?.make || ""} ${vehicleInfo?.model || ""} (VIN: ${vehicleInfo?.vin || "Unknown"})`,
-      type: "notification",
+    if (!notificationId || !status) {
+      return NextResponse.json(
+        { success: false, error: "Missing required fields: notificationId, status" },
+        { status: 400 },
+      )
     }
 
-    // Use the main email route
-    const response = await fetch(`${request.nextUrl.origin}/api/notifications/email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(notification),
+    const updatedNotification = await prisma.notification.update({
+      where: { id: notificationId },
+      data: { status },
     })
 
-    const result = await response.json()
-    return NextResponse.json(result)
+    return NextResponse.json({ success: true, notification: updatedNotification })
   } catch (error) {
-    console.error("Status email API error:", error)
-    return NextResponse.json({ success: false, error: "Failed to send status email" }, { status: 500 })
+    console.error("Notification Status API error:", error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" },
+      { status: 500 },
+    )
   }
 }

@@ -2,7 +2,8 @@
 const nextConfig = {
   output: 'standalone',
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs']
+    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
+    serverActions: true,
   },
   images: {
     domains: ['localhost'],

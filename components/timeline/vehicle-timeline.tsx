@@ -1,284 +1,182 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Calendar, Clock, AlertTriangle, CheckCircle, Car, ArrowRight } from "lucide-react"
-import { formatDate, daysSince } from "@/lib/utils"
-import type { Vehicle } from "@/lib/types"
 
-interface TimelineStep {
-  name: string
-  status: "completed" | "current" | "pending" | "overdue"
-  startDate?: string
-  endDate?: string
-  duration?: number
-  isBottleneck?: boolean
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { Clock, CheckCircle, Loader2, Car } from "lucide-react"
+import { getVehicleTimeline } from "@/app/actions/vehicles"
+import { toast } from "sonner"
+
+interface VehicleTimelineEntry {
+  id: string
+  vin: string
+  stock: string
+  make: string
+  model: string
+  year: number
+  inventoryDate: Date
+  throughShop: boolean
+  shopDoneDate?: Date
+  detailComplete: boolean
+  detailDoneDate?: Date
+  photoComplete: boolean
+  photoDoneDate?: Date
+  salesReady: boolean
+  salesReadyDate?: Date
+  daysInInventory: number
+  daysToShop?: number
+  daysToDetail?: number
+  daysToPhoto?: number
+  daysToSalesReady?: number
 }
 
-interface VehicleTimelineProps {
-  vehicle: Vehicle
-  onClose?: () => void
-}
+export function VehicleTimeline() {
+  const [vehicles, setVehicles] = useState<VehicleTimelineEntry[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-export default function VehicleTimeline({ vehicle, onClose }: VehicleTimelineProps) {
-  const [showDetails, setShowDetails] = useState(false)
+  useEffect(() => {
+    fetchVehicleTimeline()
+  }, [])
 
-  // Calculate timeline steps
-  const inventoryDate = vehicle.inventoryDate
-  const shopDate = vehicle.shopDone
-  const detailDate = vehicle.detailDone
-  const photoDate = vehicle.photoDone
-
-  // Estimate front line date (typically 1-2 days after photo completion)
-  const frontLineDate = photoDate
-    ? new Date(new Date(photoDate).getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-    : undefined
-
-  const steps: TimelineStep[] = [
-    {
-      name: "Inventory",
-      status: "completed",
-      startDate: inventoryDate,
-      endDate: inventoryDate,
-      duration: 0,
-    },
-    {
-      name: "Shop Work",
-      status: vehicle.throughShop ? "completed" : daysSince(inventoryDate) > 5 ? "overdue" : "current",
-      startDate: inventoryDate,
-      endDate: shopDate,
-      duration: shopDate ? daysSince(inventoryDate, shopDate) : daysSince(inventoryDate),
-      isBottleneck: !vehicle.throughShop && daysSince(inventoryDate) > 7,
-    },
-    {
-      name: "Detail",
-      status: vehicle.detailComplete
-        ? "completed"
-        : !vehicle.throughShop
-          ? "pending"
-          : daysSince(shopDate || inventoryDate) > 3
-            ? "overdue"
-            : "current",
-      startDate: shopDate || inventoryDate,
-      endDate: detailDate,
-      duration: detailDate
-        ? daysSince(shopDate || inventoryDate, detailDate)
-        : vehicle.throughShop
-          ? daysSince(shopDate || inventoryDate)
-          : 0,
-      isBottleneck: vehicle.throughShop && !vehicle.detailComplete && daysSince(shopDate || inventoryDate) > 5,
-    },
-    {
-      name: "Photo",
-      status: vehicle.photoComplete
-        ? "completed"
-        : !vehicle.detailComplete
-          ? "pending"
-          : daysSince(detailDate || shopDate || inventoryDate) > 2
-            ? "overdue"
-            : "current",
-      startDate: detailDate || shopDate || inventoryDate,
-      endDate: photoDate,
-      duration: photoDate
-        ? daysSince(detailDate || shopDate || inventoryDate, photoDate)
-        : vehicle.detailComplete
-          ? daysSince(detailDate || shopDate || inventoryDate)
-          : 0,
-      isBottleneck:
-        vehicle.detailComplete && !vehicle.photoComplete && daysSince(detailDate || shopDate || inventoryDate) > 3,
-    },
-    {
-      name: "Front Line Ready",
-      status: vehicle.photoComplete ? "completed" : "pending",
-      startDate: photoDate,
-      endDate: frontLineDate,
-      duration: frontLineDate && photoDate ? daysSince(photoDate, frontLineDate) : 0,
-    },
-  ]
-
-  const totalDuration = vehicle.photoComplete ? daysSince(inventoryDate, photoDate) : daysSince(inventoryDate)
-
-  const getStepColor = (status: string, isBottleneck?: boolean) => {
-    if (isBottleneck) return "border-red-500 bg-red-50"
-    switch (status) {
-      case "completed":
-        return "border-green-500 bg-green-50"
-      case "current":
-        return "border-blue-500 bg-blue-50"
-      case "overdue":
-        return "border-red-500 bg-red-50"
-      case "pending":
-        return "border-gray-300 bg-gray-50"
-      default:
-        return "border-gray-300 bg-gray-50"
+  const fetchVehicleTimeline = async () => {
+    setIsLoading(true)
+    try {
+      const data = await getVehicleTimeline()
+      setVehicles(
+        data.map((v) => ({
+          ...v,
+          inventoryDate: new Date(v.inventoryDate),
+          shopDoneDate: v.shopDoneDate ? new Date(v.shopDoneDate) : undefined,
+          detailDoneDate: v.detailDoneDate ? new Date(v.detailDoneDate) : undefined,
+          photoDoneDate: v.photoDoneDate ? new Date(v.photoDoneDate) : undefined,
+          salesReadyDate: v.salesReadyDate ? new Date(v.salesReadyDate) : undefined,
+        })),
+      )
+    } catch (error) {
+      console.error("Failed to fetch vehicle timeline:", error)
+      toast.error("Failed to load vehicle timeline.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const getStepIcon = (status: string, isBottleneck?: boolean) => {
-    if (isBottleneck) return <AlertTriangle className="h-4 w-4 text-red-600" />
-    switch (status) {
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "current":
-        return <Clock className="h-4 w-4 text-blue-600" />
-      case "overdue":
-        return <AlertTriangle className="h-4 w-4 text-red-600" />
-      case "pending":
-        return <Clock className="h-4 w-4 text-gray-400" />
+  const getStageStatus = (vehicle: VehicleTimelineEntry, stage: "shop" | "detail" | "photo" | "salesReady") => {
+    switch (stage) {
+      case "shop":
+        return vehicle.throughShop ? "Completed" : "Pending"
+      case "detail":
+        return vehicle.detailComplete ? "Completed" : vehicle.throughShop ? "In Progress" : "Pending"
+      case "photo":
+        return vehicle.photoComplete ? "Completed" : vehicle.detailComplete ? "In Progress" : "Pending"
+      case "salesReady":
+        return vehicle.salesReady ? "Completed" : vehicle.photoComplete ? "In Progress" : "Pending"
       default:
-        return <Clock className="h-4 w-4 text-gray-400" />
+        return "Unknown"
     }
   }
 
-  const getStatusBadge = (status: string, isBottleneck?: boolean) => {
-    if (isBottleneck) return <Badge variant="destructive">Bottleneck</Badge>
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800">Complete</Badge>
-      case "current":
-        return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
-      case "overdue":
-        return <Badge variant="destructive">Overdue</Badge>
-      case "pending":
-        return <Badge variant="secondary">Pending</Badge>
+  const getStageDate = (vehicle: VehicleTimelineEntry, stage: "shop" | "detail" | "photo" | "salesReady") => {
+    switch (stage) {
+      case "shop":
+        return vehicle.shopDoneDate
+      case "detail":
+        return vehicle.detailDoneDate
+      case "photo":
+        return vehicle.photoDoneDate
+      case "salesReady":
+        return vehicle.salesReadyDate
       default:
-        return <Badge variant="secondary">Pending</Badge>
+        return undefined
     }
+  }
+
+  const getDaysInStage = (vehicle: VehicleTimelineEntry, stage: "shop" | "detail" | "photo" | "salesReady") => {
+    switch (stage) {
+      case "shop":
+        return vehicle.daysToShop
+      case "detail":
+        return vehicle.daysToDetail
+      case "photo":
+        return vehicle.daysToPhoto
+      case "salesReady":
+        return vehicle.daysToSalesReady
+      default:
+        return undefined
+    }
+  }
+
+  const stages = ["shop", "detail", "photo", "salesReady"]
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <p className="ml-4 text-gray-600">Loading vehicle timelines...</p>
+      </div>
+    )
+  }
+
+  if (vehicles.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-gray-800">No Vehicles in Timeline</h3>
+        <p className="text-gray-600 mt-2">Add vehicles to your inventory to see their reconditioning progress.</p>
+      </div>
+    )
   }
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
+    <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Car className="h-6 w-6 text-blue-600" />
-            <div>
-              <CardTitle className="text-xl">
-                {vehicle.year} {vehicle.make} {vehicle.model}
-              </CardTitle>
-              <p className="text-sm text-gray-500">
-                Stock: {vehicle.stock} • VIN: {vehicle.vin}
-              </p>
-            </div>
-          </div>
-          {onClose && (
-            <Button variant="outline" size="sm" onClick={onClose}>
-              Close
-            </Button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-4 mt-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Started: {formatDate(inventoryDate)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Total Time: {totalDuration} days</span>
-          </div>
-          {vehicle.photoComplete && <Badge className="bg-green-100 text-green-800">Ready for Front Line</Badge>}
-        </div>
+        <CardTitle>Vehicle Recon Timeline</CardTitle>
+        <CardDescription>Track the progress of each vehicle through reconditioning stages.</CardDescription>
       </CardHeader>
-
-      <CardContent>
-        {/* Timeline Visualization */}
-        <div className="space-y-4">
-          {steps.map((step, index) => (
-            <div key={step.name} className="relative">
-              {/* Connection Line */}
-              {index < steps.length - 1 && <div className="absolute left-6 top-12 w-0.5 h-8 bg-gray-300"></div>}
-
-              <div
-                className={`flex items-start gap-4 p-4 rounded-lg border-2 ${getStepColor(step.status, step.isBottleneck)}`}
-              >
-                {/* Step Icon */}
-                <div className="flex-shrink-0 mt-1">{getStepIcon(step.status, step.isBottleneck)}</div>
-
-                {/* Step Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-lg">{step.name}</h3>
-                    {getStatusBadge(step.status, step.isBottleneck)}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-500 mb-1">Start Date</p>
-                      <p className="font-medium">{step.startDate ? formatDate(step.startDate) : "Not started"}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-gray-500 mb-1">End Date</p>
-                      <p className="font-medium">
-                        {step.endDate
-                          ? formatDate(step.endDate)
-                          : step.status === "pending"
-                            ? "Waiting"
-                            : "In progress"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-gray-500 mb-1">Duration</p>
-                      <p className="font-medium">{step.duration !== undefined ? `${step.duration} days` : "—"}</p>
-                    </div>
-                  </div>
-
-                  {/* Bottleneck Warning */}
-                  {step.isBottleneck && (
-                    <div className="mt-3 p-2 bg-red-100 rounded-md">
-                      <p className="text-sm text-red-800 flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        This step is taking longer than expected and may be causing delays
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Arrow for flow */}
-                {index < steps.length - 1 && step.status === "completed" && (
-                  <div className="flex-shrink-0 mt-6">
-                    <ArrowRight className="h-5 w-5 text-green-600" />
-                  </div>
-                )}
+      <CardContent className="space-y-8">
+        {vehicles.map((vehicle) => (
+          <div key={vehicle.id} className="border rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">
+                  {vehicle.year} {vehicle.make} {vehicle.model} ({vehicle.stock})
+                </h3>
+                <p className="text-sm text-muted-foreground">VIN: ...{vehicle.vin.slice(-6)}</p>
               </div>
+              <Badge variant="secondary">Days in Inventory: {vehicle.daysInInventory}</Badge>
             </div>
-          ))}
-        </div>
-
-        {/* Summary Stats */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h4 className="font-semibold mb-3">Timeline Summary</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500">Shop Duration</p>
-              <p className="font-semibold text-lg">{steps[1].duration || 0} days</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Detail Duration</p>
-              <p className="font-semibold text-lg">{steps[2].duration || 0} days</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Photo Duration</p>
-              <p className="font-semibold text-lg">{steps[3].duration || 0} days</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Total Time</p>
-              <p className="font-semibold text-lg text-blue-600">{totalDuration} days</p>
+            <Separator className="my-4" />
+            <div className="relative pl-6">
+              <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-gray-200" />
+              {stages.map((stage, index) => (
+                <div key={stage} className="mb-6 relative">
+                  <div className="absolute -left-3 top-0 flex items-center justify-center w-6 h-6 rounded-full bg-white border-2 border-blue-500">
+                    {getStageStatus(vehicle, stage as any) === "Completed" ? (
+                      <CheckCircle className="h-4 w-4 text-blue-500" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div className="ml-4">
+                    <h4 className="font-medium capitalize">{stage.replace(/([A-Z])/g, " $1").trim()}</h4>
+                    <p className="text-sm text-muted-foreground">Status: {getStageStatus(vehicle, stage as any)}</p>
+                    {getStageDate(vehicle, stage as any) && (
+                      <p className="text-xs text-muted-foreground">
+                        Completed: {getStageDate(vehicle, stage as any)?.toLocaleDateString()}
+                      </p>
+                    )}
+                    {getDaysInStage(vehicle, stage as any) !== undefined && (
+                      <p className="text-xs text-muted-foreground">
+                        Days in Stage: {getDaysInStage(vehicle, stage as any)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-
-        {/* Performance Indicators */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {totalDuration <= 10 && <Badge className="bg-green-100 text-green-800">Fast Track</Badge>}
-          {totalDuration > 15 && <Badge variant="destructive">Slow Processing</Badge>}
-          {steps.some((s) => s.isBottleneck) && <Badge variant="destructive">Has Bottlenecks</Badge>}
-          {vehicle.photoComplete && <Badge className="bg-blue-100 text-blue-800">Complete</Badge>}
-        </div>
+        ))}
       </CardContent>
     </Card>
   )

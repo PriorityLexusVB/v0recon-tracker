@@ -3,8 +3,23 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Car, BarChart3, Users, Clock, Shield, Smartphone, Bell } from "lucide-react"
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await auth()
+
+  if (!session?.user) {
+    redirect("/auth/signin")
+  }
+
+  // Redirect based on role or to a default dashboard
+  if (session.user.role === "ADMIN" || session.user.role === "MANAGER") {
+    redirect("/admin")
+  } else {
+    redirect("/recon/cards")
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}

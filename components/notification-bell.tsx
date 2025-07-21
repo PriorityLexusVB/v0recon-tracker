@@ -1,18 +1,25 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Bell, X } from "lucide-react"
+import { Bell, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import {
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+} from "@/app/actions/notifications"
+import { toast } from "sonner"
 
 interface Notification {
   id: string
   title: string
   message: string
-  type: "info" | "warning" | "success" | "error"
+  type: "INFO" | "WARNING" | "SUCCESS" | "ERROR" | "ASSIGNMENT" | "REMINDER"
   timestamp: Date
   read: boolean
 }
@@ -20,60 +27,78 @@ interface Notification {
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Mock notifications for demo
-    const mockNotifications: Notification[] = [
-      {
-        id: "1",
-        title: "Vehicle Completed",
-        message: "2023 Honda Civic (VIN: 1234) has been completed",
-        type: "success",
-        timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-        read: false,
-      },
-      {
-        id: "2",
-        title: "Overdue Vehicle",
-        message: "2022 Toyota Camry (VIN: 5678) is overdue for completion",
-        type: "warning",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        read: false,
-      },
-      {
-        id: "3",
-        title: "New Assignment",
-        message: "You have been assigned a new vehicle for reconditioning",
-        type: "info",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
-        read: true,
-      },
-    ]
-    setNotifications(mockNotifications)
+    fetchNotifications()
   }, [])
+
+  const fetchNotifications = async () => {
+    setIsLoading(true)
+    try {
+      const fetchedNotifications = await getNotifications()
+      setNotifications(
+        fetchedNotifications.map((n) => ({
+          ...n,
+          timestamp: new Date(n.createdAt), // Map createdAt to timestamp
+          read: n.read,
+          type: n.type as Notification["type"], // Ensure type matches
+        })),
+      )
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error)
+      toast.error("Failed to load notifications.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await markNotificationAsRead(id)
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error)
+      toast.error("Failed to mark notification as read.")
+    }
   }
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllNotificationsAsRead()
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+      toast.success("All notifications marked as read.")
+    } catch (error) {
+      console.error("Failed to mark all notifications as read:", error)
+      toast.error("Failed to mark all notifications as read.")
+    }
   }
 
-  const removeNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
+  const handleRemoveNotification = async (id: string) => {
+    try {
+      await deleteNotification(id)
+      setNotifications((prev) => prev.filter((n) => n.id !== id))
+      toast.info("Notification removed.")
+    } catch (error) {
+      console.error("Failed to remove notification:", error)
+      toast.error("Failed to remove notification.")
+    }
   }
 
   const getNotificationIcon = (type: Notification["type"]) => {
     switch (type) {
-      case "success":
+      case "SUCCESS":
         return "✅"
-      case "warning":
+      case "WARNING":
         return "⚠️"
-      case "error":
+      case "ERROR":
         return "❌"
+      case "ASSIGNMENT":
+        return "📝"
+      case "REMINDER":
+        return "⏰"
       default:
         return "ℹ️"
     }
@@ -112,24 +137,29 @@ export function NotificationBell() {
           <div className="flex items-center justify-between">
             <SheetTitle>Notifications</SheetTitle>
             {unreadCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+              <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead}>
                 Mark all read
               </Button>
             )}
           </div>
         </SheetHeader>
         <ScrollArea className="h-[calc(100vh-100px)] mt-4">
-          {notifications.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+              <p className="ml-2 text-gray-600">Loading notifications...</p>
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">No notifications</div>
           ) : (
             <div className="space-y-2">
               {notifications.map((notification, index) => (
                 <div key={notification.id}>
                   <div
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                    className={`p-3 rounded-lg cursor-pointer transition-colors relative ${
                       notification.read ? "bg-muted/50" : "bg-muted hover:bg-muted/80"
                     }`}
-                    onClick={() => markAsRead(notification.id)}
+                    onClick={() => handleMarkAsRead(notification.id)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-start space-x-2 flex-1">
@@ -148,7 +178,7 @@ export function NotificationBell() {
                         className="h-6 w-6 opacity-0 group-hover:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation()
-                          removeNotification(notification.id)
+                          handleRemoveNotification(notification.id)
                         }}
                       >
                         <X className="h-3 w-3" />

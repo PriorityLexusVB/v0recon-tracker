@@ -3,105 +3,88 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest, { params }: { params: { vin: string } }) {
-  try {
-    const session = await auth()
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+  const session = await auth()
+  if (!session || !session.user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+  }
 
+  const { vin } = params
+
+  try {
     const vehicle = await prisma.vehicle.findUnique({
-      where: { vin: params.vin },
+      where: { vin },
       include: {
         assignments: {
           include: {
             team: true,
             user: true,
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         },
       },
     })
 
     if (!vehicle) {
-      return NextResponse.json({ error: "Vehicle not found" }, { status: 404 })
-    }
-
-    // Check if user has access to this vehicle
-    if (session.user.role !== "admin" && session.user.role !== "manager") {
-      const hasAccess = vehicle.assignments.some((assignment) => assignment.teamId === session.user.teamId)
-
-      if (!hasAccess) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 })
-      }
+      return NextResponse.json({ message: "Vehicle not found" }, { status: 404 })
     }
 
     return NextResponse.json(vehicle)
   } catch (error) {
-    console.error("API Error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error(`Error fetching vehicle ${vin}:`, error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { vin: string } }) {
+  const session = await auth()
+  if (!session || !session.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+  }
+
+  const { vin } = params
+  const body = await request.json()
+
   try {
-    const session = await auth()
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const body = await request.json()
-    const { throughShop, detailComplete, photoComplete, shopDone, detailDone, photoDone } = body
-
-    // Check permissions based on user role and department
-    const canEditShop =
-      session.user.department === "shop" || session.user.role === "admin" || session.user.role === "manager"
-    const canEditDetail =
-      session.user.department === "detail" || session.user.role === "admin" || session.user.role === "manager"
-    const canEditPhoto =
-      session.user.department === "photo" || session.user.role === "admin" || session.user.role === "manager"
-
-    const updateData: any = {}
-
-    if (throughShop !== undefined && canEditShop) {
-      updateData.throughShop = throughShop
-      if (throughShop && !shopDone) {
-        updateData.shopDone = new Date().toISOString()
-      }
-    }
-
-    if (detailComplete !== undefined && canEditDetail) {
-      updateData.detailComplete = detailComplete
-      if (detailComplete && !detailDone) {
-        updateData.detailDone = new Date().toISOString()
-      }
-    }
-
-    if (photoComplete !== undefined && canEditPhoto) {
-      updateData.photoComplete = photoComplete
-      if (photoComplete && !photoDone) {
-        updateData.photoDone = new Date().toISOString()
-      }
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: "No valid updates provided" }, { status: 400 })
-    }
-
-    const vehicle = await prisma.vehicle.update({
-      where: { vin: params.vin },
-      data: updateData,
-      include: {
-        assignments: {
-          include: {
-            team: true,
-            user: true,
-          },
-        },
+    const updatedVehicle = await prisma.vehicle.update({
+      where: { vin },
+      data: {
+        make: body.make,
+        model: body.model,
+        year: body.year,
+        color: body.color,
+        mileage: body.mileage,
+        price: body.price,
+        status: body.status,
+        priority: body.priority,
+        location: body.location,
+        notes: body.notes,
+        // Add other fields as needed
       },
     })
-
-    return NextResponse.json(vehicle)
+    return NextResponse.json(updatedVehicle)
   } catch (error) {
-    console.error("API Error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error(`Error updating vehicle ${vin}:`, error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { vin: string } }) {
+  const session = await auth()
+  if (!session || !session.user || session.user.role !== "ADMIN") {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+  }
+
+  const { vin } = params
+
+  try {
+    await prisma.vehicle.delete({
+      where: { vin },
+    })
+    return NextResponse.json({ message: "Vehicle deleted successfully" })
+  } catch (error) {
+    console.error(`Error deleting vehicle ${vin}:`, error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }

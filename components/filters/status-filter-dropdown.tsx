@@ -1,29 +1,27 @@
 "use client"
 
-import { useVehicleStore } from "@/lib/vehicle-store"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export default function StatusFilterDropdown() {
-  const { filters, setFilters } = useVehicleStore()
+interface StatusFilterDropdownProps {
+  value: string
+  onValueChange: (value: string) => void
+}
 
+export function StatusFilterDropdown({ value, onValueChange }: StatusFilterDropdownProps) {
   return (
-    <div className="w-full sm:w-48">
-      <Select
-        value={filters.status}
-        onValueChange={(value: "all" | "complete" | "needs-attention" | "overdue") =>
-          setFilters({ status: value, activeStatFilter: undefined })
-        }
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Filter by status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          <SelectItem value="complete">Complete</SelectItem>
-          <SelectItem value="needs-attention">Needs Attention</SelectItem>
-          <SelectItem value="overdue">Overdue</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder="Filter by Status" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Statuses</SelectItem>
+        <SelectItem value="PENDING">Pending</SelectItem>
+        <SelectItem value="IN_SHOP">In Shop</SelectItem>
+        <SelectItem value="DETAIL">Detail</SelectItem>
+        <SelectItem value="PHOTO">Photo</SelectItem>
+        <SelectItem value="SALES_READY">Sales Ready</SelectItem>
+        <SelectItem value="COMPLETED">Completed</SelectItem>
+      </SelectContent>
+    </Select>
   )
 }

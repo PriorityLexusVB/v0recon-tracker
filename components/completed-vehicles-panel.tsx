@@ -1,131 +1,99 @@
 "use client"
 
-import { useState } from "react"
-import { useVehicleStore } from "@/lib/vehicle-store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, RotateCcw, Trash2, Calendar, Car, ChevronDown, ChevronUp } from "lucide-react"
-import { formatDate } from "@/lib/utils"
-import type { Vehicle } from "@/lib/types"
+import { ArrowRight, Loader2, Car, CheckCircle } from "lucide-react"
+import Link from "next/link"
+import { getCompletedVehicles } from "@/app/actions/vehicles"
+import { toast } from "sonner"
 
-export default function CompletedVehiclesPanel() {
-  const { completedVehicles, restoreCompletedVehicle, permanentlyRemoveVehicle } = useVehicleStore()
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+interface Vehicle {
+  id: string
+  vin: string
+  stock: string
+  make: string
+  model: string
+  year: number
+  completedAt?: Date
+}
 
-  if (completedVehicles.length === 0) {
-    return null
-  }
+export function CompletedVehiclesPanel() {
+  const [completedVehicles, setCompletedVehicles] = useState<Vehicle[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const displayedVehicles = showAll ? completedVehicles : completedVehicles.slice(0, 3)
+  useEffect(() => {
+    fetchCompletedVehicles()
+  }, [])
 
-  const handleRestore = (vin: string) => {
-    if (confirm("Are you sure you want to restore this vehicle to active status?")) {
-      restoreCompletedVehicle(vin)
+  const fetchCompletedVehicles = async () => {
+    setIsLoading(true)
+    try {
+      const data = await getCompletedVehicles()
+      setCompletedVehicles(data)
+    } catch (error) {
+      console.error("Failed to fetch completed vehicles:", error)
+      toast.error("Failed to load completed vehicles.")
+    } finally {
+      setIsLoading(false)
     }
-  }
-
-  const handlePermanentRemove = (vin: string) => {
-    if (confirm("Are you sure you want to permanently remove this vehicle? This action cannot be undone.")) {
-      permanentlyRemoveVehicle(vin)
-    }
-  }
-
-  const getCompletionDate = (vehicle: Vehicle) => {
-    const dates = [
-      vehicle.shopDone ? new Date(vehicle.shopDone) : null,
-      vehicle.detailDone ? new Date(vehicle.detailDone) : null,
-      vehicle.photoDone ? new Date(vehicle.photoDone) : null,
-    ].filter(Boolean) as Date[]
-
-    if (dates.length === 0) return "Unknown"
-
-    const latestDate = new Date(Math.max(...dates.map((d) => d.getTime())))
-    return formatDate(latestDate.toISOString().split("T")[0])
   }
 
   return (
-    <Card className="border-green-200 bg-green-50">
-      <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-green-800">
-            <CheckCircle className="h-5 w-5" />
-            Completed Vehicles
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              {completedVehicles.length}
-            </Badge>
-          </CardTitle>
-          {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div>
+          <CardTitle className="text-lg">Completed Vehicles</CardTitle>
+          <CardDescription>Recently finished reconditioning process</CardDescription>
         </div>
-        <p className="text-sm text-green-700">Vehicles that have completed all reconditioning steps</p>
+        <CheckCircle className="h-5 w-5 text-green-500" />
       </CardHeader>
-
-      {isExpanded && (
-        <CardContent className="space-y-4">
-          <div className="grid gap-3">
-            {displayedVehicles.map((vehicle) => (
-              <div
-                key={vehicle.vin}
-                className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Car className="h-4 w-4 text-green-600" />
-                    <span className="font-medium text-sm">
-                      {vehicle.year} {vehicle.make} {vehicle.model}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {vehicle.stock}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-600">
-                    <span>VIN: {vehicle.vin}</span>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Completed: {getCompletionDate(vehicle)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRestore(vehicle.vin)}
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    Restore
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePermanentRemove(vehicle.vin)}
-                    className="flex items-center gap-1 text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            ))}
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+            <p className="ml-2 text-gray-600">Loading...</p>
           </div>
-
-          {completedVehicles.length > 3 && (
-            <div className="text-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAll(!showAll)}
-                className="text-green-700 hover:text-green-800"
-              >
-                {showAll ? "Show Less" : `Show All ${completedVehicles.length} Completed`}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      )}
+        ) : completedVehicles.length === 0 ? (
+          <div className="text-center py-8">
+            <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">No vehicles completed recently.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>VIN</TableHead>
+                  <TableHead>Completed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {completedVehicles.slice(0, 5).map((vehicle) => (
+                  <TableRow key={vehicle.id}>
+                    <TableCell className="font-medium">
+                      {vehicle.year} {vehicle.make} {vehicle.model}
+                    </TableCell>
+                    <TableCell>{vehicle.vin.slice(-6)}</TableCell>
+                    <TableCell>
+                      {vehicle.completedAt ? new Date(vehicle.completedAt).toLocaleDateString() : "N/A"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <div className="mt-4 text-right">
+          <Button variant="link" asChild>
+            <Link href="/recon/cards?status=completed">
+              View All Completed <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   )
 }

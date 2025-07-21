@@ -1,36 +1,29 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { sendEmail } from "@/lib/email-service"
 
 export async function POST(request: NextRequest) {
   try {
-    const { notifications } = await request.json()
+    const { recipients, subject, body } = await request.json()
 
-    // Send all notifications using the main email route
-    const results = await Promise.allSettled(
-      notifications.map(async (notification: any) => {
-        const response = await fetch(`${request.nextUrl.origin}/api/notifications/email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(notification),
-        })
-        return response.json()
-      }),
-    )
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !subject || !body) {
+      return NextResponse.json(
+        { success: false, error: "Missing required fields: recipients, subject, body" },
+        { status: 400 },
+      )
+    }
 
-    const successful = results.filter((result) => result.status === "fulfilled").length
-    const failed = results.filter((result) => result.status === "rejected").length
+    const results = []
+    for (const recipient of recipients) {
+      const result = await sendEmail({ to: recipient, subject, html: body })
+      results.push({ recipient, success: result.success, message: result.message })
+    }
 
-    return NextResponse.json({
-      success: true,
-      results: {
-        total: notifications.length,
-        successful,
-        failed,
-      },
-    })
+    return NextResponse.json({ success: true, results })
   } catch (error) {
-    console.error("Bulk email API error:", error)
-    return NextResponse.json({ success: false, error: "Failed to send bulk emails" }, { status: 500 })
+    console.error("Bulk Email API error:", error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" },
+      { status: 500 },
+    )
   }
 }

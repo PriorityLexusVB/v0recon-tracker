@@ -1,59 +1,50 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { headers } from "next/headers"
-import crypto from "crypto"
+import { prisma } from "@/lib/prisma"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.text()
-    const headersList = headers()
-    const signature = headersList.get("x-recon-signature")
-    const timestamp = headersList.get("x-recon-timestamp")
+    const event = await request.json()
+    console.log("Received webhook event:", event)
 
-    // Verify webhook signature if secret is configured
-    const webhookSecret = process.env.WEBHOOK_SECRET
-    if (webhookSecret && signature) {
-      const expectedSignature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(timestamp + "." + body)
-        .digest("hex")
+    // Example: Handle a vehicle status update from an external system
+    if (event.type === "vehicle.status_updated" && event.data?.vin && event.data?.newStatus) {
+      const { vin, newStatus } = event.data
 
-      if (signature !== `sha256=${expectedSignature}`) {
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
-      }
+      const updatedVehicle = await prisma.vehicle.update({
+        where: { vin },
+        data: { status: newStatus },
+      })
+
+      console.log(`Vehicle ${vin} status updated to ${newStatus}`)
+      return NextResponse.json({ success: true, message: "Vehicle status updated", vehicle: updatedVehicle })
     }
 
-    const payload = JSON.parse(body)
-    const { event, data } = payload
-
-    // Process different webhook events
-    switch (event) {
-      case "vehicle.completed":
-        console.log("Vehicle completed:", data.vin)
-        // Add your custom logic here
-        break
-
-      case "vehicle.overdue":
-        console.log("Vehicle overdue:", data.vin)
-        // Add your custom logic here
-        break
-
-      case "team.assigned":
-        console.log("Team assigned:", data.teamId, "to vehicle:", data.vin)
-        // Add your custom logic here
-        break
-
-      case "daily.report":
-        console.log("Daily report generated:", data.date)
-        // Add your custom logic here
-        break
-
-      default:
-        console.log("Unknown webhook event:", event)
+    // Example: Handle a new vehicle added
+    if (event.type === "vehicle.added" && event.data?.vin) {
+      const { vin, make, model, year, stock } = event.data
+      const newVehicle = await prisma.vehicle.create({
+        data: {
+          vin,
+          make,
+          model,
+          year,
+          stock,
+          status: "PENDING",
+          priority: "NORMAL",
+          inventoryDate: new Date(),
+          daysInInventory: 0,
+        },
+      })
+      console.log(`New vehicle ${vin} added`)
+      return NextResponse.json({ success: true, message: "New vehicle added", vehicle: newVehicle })
     }
 
-    return NextResponse.json({ received: true })
+    return NextResponse.json({ success: false, message: "Event type not supported" }, { status: 400 })
   } catch (error) {
-    console.error("Webhook Error:", error)
-    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
+    console.error("Webhook error:", error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" },
+      { status: 500 },
+    )
   }
 }

@@ -1,100 +1,111 @@
 "use server"
 
-import { auth } from "@/lib/auth"
-import bcrypt from "bcryptjs"
-import prisma from "@/lib/prisma"
-import { ChangePasswordSchema, UpdateProfileSchema } from "@/lib/definitions"
+import { prisma } from "@/lib/prisma"
+import bcryptjs from "bcryptjs"
 import { revalidatePath } from "next/cache"
+import { auth } from "@/lib/auth"
 
-export async function changePassword(prevState: string | undefined, formData: FormData) {
+export async function getUserProfile(userId: string) {
+  const session = await auth()
+  if (!session || !session.user) {
+    throw new Error("Unauthorized")
+  }
+
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return "Unauthorized"
-    }
-
-    const validatedFields = ChangePasswordSchema.safeParse({
-      currentPassword: formData.get("currentPassword"),
-      newPassword: formData.get("newPassword"),
-    })
-
-    if (!validatedFields.success) {
-      return "Invalid fields."
-    }
-
-    const { currentPassword, newPassword } = validatedFields.data
-
-    // Get current user
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        isActive: true,
+        createdAt: true,
+        team: {
+          select: {
+            id: true,
+            name: true,
+            department: true,
+          },
+        },
+      },
     })
-
-    if (!user || !user.password) {
-      return "User not found."
-    }
-
-    // Verify current password
-    const passwordsMatch = await bcrypt.compare(currentPassword, user.password)
-    if (!passwordsMatch) {
-      return "Current password is incorrect."
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12)
-
-    // Update password
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: { password: hashedPassword },
-    })
-
-    return "success"
+    return user
   } catch (error) {
-    console.error("Change password error:", error)
-    return "Something went wrong."
+    console.error("Error fetching user profile:", error)
+    throw new Error("Failed to fetch user profile.")
   }
 }
 
-export async function updateUserProfile(prevState: string | undefined, formData: FormData) {
+export async function updateUserProfile(userId: string, formData: FormData) {
+  const session = await auth()
+  if (!session || !session.user || (session.user.id !== userId && session.user.role !== "ADMIN")) {
+    throw new Error("Unauthorized")
+  }
+
+  const name = formData.get("name") as string
+  const email = formData.get("email") as string
+  const department = formData.get("department") as string
+  const currentPassword = formData.get("currentPassword") as string
+  const newPassword = formData.get("newPassword") as string
+
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return "Unauthorized"
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      throw new Error("User not found.")
     }
 
-    const validatedFields = UpdateProfileSchema.safeParse({
-      name: formData.get("name"),
-      email: formData.get("email"),
-      department: formData.get("department"),
-    })
-
-    if (!validatedFields.success) {
-      return "Invalid fields."
-    }
-
-    const { name, email, department } = validatedFields.data
-
-    // Check if email is already taken by another user
-    if (email !== session.user.email) {
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      })
-
-      if (existingUser && existingUser.id !== session.user.id) {
-        return "Email is already taken."
+    if (currentPassword && newPassword) {
+      const isPasswordValid = await bcryptjs.compare(currentPassword, user.password)
+      if (!isPasswordValid) {
+        throw new Error("Invalid current password.")
       }
+      const hashedPassword = await bcryptjs.hash(newPassword, 12)
+      await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      })
     }
 
-    // Update user profile
     await prisma.user.update({
-      where: { id: session.user.id },
-      data: { name, email, department },
+      where: { id: userId },
+      data: {
+        name: name || null,
+        email: email,
+        department: department || null,
+      },
     })
 
-    revalidatePath("/settings")
-    return "success"
+    revalidatePath(`/settings`)
+    return { success: true, message: "Profile updated successfully." }
   } catch (error) {
-    console.error("Update profile error:", error)
-    return "Something went wrong."
+    console.error("Error updating user profile:", error)
+    return { success: false, message: error instanceof Error ? error.message : "Failed to update profile." }
+  }
+}
+
+export async function updateNotificationSettings(userId: string, formData: FormData) {
+  const session = await auth()
+  if (!session || !session.user || session.user.id !== userId) {
+    throw new Error("Unauthorized")
+  }
+
+  const emailNotifications = formData.get("emailNotifications") === "on"
+  const smsNotifications = formData.get("smsNotifications") === "on"
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        emailNotificationsEnabled: emailNotifications,
+        smsNotificationsEnabled: smsNotifications,
+      },
+    })
+    revalidatePath(`/settings`)
+    return { success: true, message: "Notification settings updated." }
+  } catch (error) {
+    console.error("Error updating notification settings:", error)
+    return { success: false, message: "Failed to update notification settings." }
   }
 }

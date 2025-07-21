@@ -1,196 +1,116 @@
 "use client"
 
-import { useState } from "react"
-import { X, Volume2, VolumeX, Monitor, MonitorX } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+
+import { useEffect, useState, useTransition } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Input } from "@/components/ui/input"
-import { useNotificationStore } from "@/lib/notification-store"
+import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { getUserProfile, updateNotificationSettings } from "@/app/actions/user"
+import { useAuth } from "@/hooks/use-auth"
 
-interface NotificationSettingsProps {
-  onClose: () => void
-}
+export function NotificationSettings() {
+  const { user, isLoading: isLoadingAuth } = useAuth()
+  const [emailNotifications, setEmailNotifications] = useState(false)
+  const [smsNotifications, setSmsNotifications] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
 
-export default function NotificationSettings({ onClose }: NotificationSettingsProps) {
-  const { settings, updateSettings, requestPermission, permissionGranted } = useNotificationStore()
-  const [localSettings, setLocalSettings] = useState(settings)
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserSettings(user.id)
+    }
+  }, [user?.id])
 
-  const handleSave = () => {
-    updateSettings(localSettings)
-    onClose()
+  const fetchUserSettings = async (userId: string) => {
+    setIsLoadingSettings(true)
+    try {
+      const profile = await getUserProfile(userId)
+      if (profile) {
+        setEmailNotifications(profile.emailNotificationsEnabled || false)
+        setSmsNotifications(profile.smsNotificationsEnabled || false)
+      }
+    } catch (error) {
+      console.error("Failed to fetch user settings:", error)
+      toast.error("Failed to load notification settings.")
+    } finally {
+      setIsLoadingSettings(false)
+    }
   }
 
-  const handlePermissionRequest = async () => {
-    await requestPermission()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user?.id) {
+      toast.error("User not authenticated.")
+      return
+    }
+
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.append("emailNotifications", emailNotifications ? "on" : "off")
+      formData.append("smsNotifications", smsNotifications ? "on" : "off")
+
+      const result = await updateNotificationSettings(user.id, formData)
+      if (result.success) {
+        toast.success(result.message)
+      } else {
+        toast.error(result.message)
+      }
+    })
+  }
+
+  if (isLoadingAuth || isLoadingSettings) {
+    return (
+      <Card>
+        <CardContent className="pt-6 flex items-center justify-center h-32">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="ml-4 text-gray-600">Loading settings...</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="text-lg font-semibold">Notification Settings</CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* Browser Notifications */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                {permissionGranted ? (
-                  <Monitor className="h-4 w-4 text-green-600" />
-                ) : (
-                  <MonitorX className="h-4 w-4 text-gray-400" />
-                )}
-                <Label htmlFor="browser-notifications">Browser Notifications</Label>
-              </div>
-              <Switch
-                id="browser-notifications"
-                checked={localSettings.browserNotifications && permissionGranted}
-                onCheckedChange={(checked) => {
-                  if (checked && !permissionGranted) {
-                    handlePermissionRequest()
-                  }
-                  setLocalSettings({ ...localSettings, browserNotifications: checked })
-                }}
-              />
-            </div>
-            {!permissionGranted && (
-              <div className="text-xs text-gray-500 ml-6">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePermissionRequest}
-                  className="h-7 text-xs bg-transparent"
-                >
-                  Enable Browser Notifications
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Sound Notifications */}
+    <Card>
+      <CardHeader>
+        <CardTitle>Notification Settings</CardTitle>
+        <CardDescription>Manage your notification preferences.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              {localSettings.soundEnabled ? (
-                <Volume2 className="h-4 w-4 text-blue-600" />
-              ) : (
-                <VolumeX className="h-4 w-4 text-gray-400" />
-              )}
-              <Label htmlFor="sound-notifications">Sound Notifications</Label>
-            </div>
+            <Label htmlFor="email-notifications">Email Notifications</Label>
             <Switch
-              id="sound-notifications"
-              checked={localSettings.soundEnabled}
-              onCheckedChange={(checked) => setLocalSettings({ ...localSettings, soundEnabled: checked })}
+              id="email-notifications"
+              checked={emailNotifications}
+              onCheckedChange={setEmailNotifications}
+              disabled={isPending}
             />
           </div>
-
-          {/* Notification Types */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium text-gray-900">Notification Types</h4>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm">🚨</span>
-                  <Label htmlFor="overdue-notifications">Overdue Alerts</Label>
-                </div>
-                <Switch
-                  id="overdue-notifications"
-                  checked={localSettings.overdueEnabled}
-                  onCheckedChange={(checked) => setLocalSettings({ ...localSettings, overdueEnabled: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm">⚠️</span>
-                  <Label htmlFor="warning-notifications">Due Soon Warnings</Label>
-                </div>
-                <Switch
-                  id="warning-notifications"
-                  checked={localSettings.warningEnabled}
-                  onCheckedChange={(checked) => setLocalSettings({ ...localSettings, warningEnabled: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm">✅</span>
-                  <Label htmlFor="milestone-notifications">Completion Updates</Label>
-                </div>
-                <Switch
-                  id="milestone-notifications"
-                  checked={localSettings.milestoneEnabled}
-                  onCheckedChange={(checked) => setLocalSettings({ ...localSettings, milestoneEnabled: checked })}
-                />
-              </div>
-            </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="sms-notifications">SMS Notifications</Label>
+            <Switch
+              id="sms-notifications"
+              checked={smsNotifications}
+              onCheckedChange={setSmsNotifications}
+              disabled={isPending}
+            />
           </div>
-
-          {/* Timing Settings */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium text-gray-900">Timing Settings</h4>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="overdue-threshold" className="text-sm">
-                  Overdue after (days)
-                </Label>
-                <Input
-                  id="overdue-threshold"
-                  type="number"
-                  min="0"
-                  max="30"
-                  value={localSettings.overdueThreshold}
-                  onChange={(e) =>
-                    setLocalSettings({
-                      ...localSettings,
-                      overdueThreshold: Number.parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 h-8"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="warning-threshold" className="text-sm">
-                  Warn before due (days)
-                </Label>
-                <Input
-                  id="warning-threshold"
-                  type="number"
-                  min="0"
-                  max="7"
-                  value={localSettings.warningThreshold}
-                  onChange={(e) =>
-                    setLocalSettings({
-                      ...localSettings,
-                      warningThreshold: Number.parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 h-8"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex space-x-3 pt-4">
-            <Button variant="outline" onClick={onClose} className="flex-1 bg-transparent">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="flex-1">
-              Save Settings
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

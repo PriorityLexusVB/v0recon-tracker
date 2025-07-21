@@ -2,151 +2,187 @@
 
 import type React from "react"
 
-import { useState, useTransition } from "react"
-import { useSearchParams } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Lock, CheckCircle } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { Loader2 } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { toast } from "sonner"
+import ResetPasswordLoading from "@/components/ResetPasswordLoading" // Declare the variable before using it
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
+
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState("")
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  const [isError, setIsError] = useState(false)
+  const [isValidToken, setIsValidToken] = useState(false)
+  const [isLoadingToken, setIsLoadingToken] = useState(true)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const validateToken = async () => {
+      if (!token) {
+        setMessage("No reset token provided.")
+        setIsError(true)
+        setIsValidToken(false)
+        setIsLoadingToken(false)
+        return
+      }
+
+      try {
+        // In a real application, you would validate the token against your backend
+        // This is a mock validation
+        const response = (await new Promise((resolve) =>
+          setTimeout(() => {
+            if (token === "mock-reset-token-123") {
+              resolve({ ok: true, json: () => Promise.resolve({ success: true }) })
+            } else {
+              resolve({
+                ok: false,
+                json: () => Promise.resolve({ success: false, error: "Invalid or expired token." }),
+              })
+            }
+          }, 500),
+        )) as Response
+
+        const data = await response.json()
+
+        if (response.ok && data.success) {
+          setIsValidToken(true)
+          setMessage("Enter your new password.")
+        } else {
+          setMessage(data.error || "Invalid or expired reset token.")
+          setIsError(true)
+          setIsValidToken(false)
+        }
+      } catch (error) {
+        console.error("Token validation error:", error)
+        setMessage("An error occurred while validating the token.")
+        setIsError(true)
+        setIsValidToken(false)
+      } finally {
+        setIsLoadingToken(false)
+      }
+    }
+
+    validateToken()
+  }, [token])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsSubmitting(true)
+    setMessage("")
+    setIsError(false)
 
     if (password !== confirmPassword) {
-      setMessage("Passwords don't match")
+      setMessage("Passwords do not match.")
+      setIsError(true)
+      setIsSubmitting(false)
       return
     }
 
-    if (password.length < 6) {
-      setMessage("Password must be at least 6 characters")
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters long.")
+      setIsError(true)
+      setIsSubmitting(false)
       return
     }
 
-    startTransition(() => {
-      // Mock password reset functionality
-      setTimeout(() => {
-        setMessage("Password reset successful")
-        setIsSuccess(true)
-      }, 1000)
-    })
+    try {
+      // In a real application, you would send the new password and token to your backend
+      // This is a mock API call
+      const response = (await new Promise((resolve) =>
+        setTimeout(() => {
+          if (token === "mock-reset-token-123") {
+            resolve({ ok: true, json: () => Promise.resolve({ success: true }) })
+          } else {
+            resolve({ ok: false, json: () => Promise.resolve({ success: false, error: "Failed to reset password." }) })
+          }
+        }, 1000),
+      )) as Response
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setMessage("Your password has been reset successfully. You can now sign in.")
+        toast.success("Password reset successfully!")
+      } else {
+        setMessage(data.error || "Failed to reset password. Please try again.")
+        setIsError(true)
+        toast.error(data.error || "Failed to reset password.")
+      }
+    } catch (error) {
+      console.error("Reset password error:", error)
+      setMessage("An unexpected error occurred. Please try again.")
+      setIsError(true)
+      toast.error("An unexpected error occurred.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center text-red-600">Invalid Reset Link</CardTitle>
-            <CardDescription className="text-center">
-              This password reset link is invalid or has expired.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center">
-              <Link href="/auth/forgot-password" className="text-blue-600 hover:text-blue-500">
-                Request a new reset link
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-center text-green-600">Password Reset Successful</CardTitle>
-            <CardDescription className="text-center">
-              Your password has been successfully reset. You can now sign in with your new password.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center">
-              <Link href="/auth/signin">
-                <Button className="w-full">Sign In</Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  if (isLoadingToken) {
+    return <ResetPasswordLoading />
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center w-12 h-12 mx-auto bg-blue-100 rounded-full mb-4">
-            <Lock className="w-6 h-6 text-blue-600" />
-          </div>
-          <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
-          <CardDescription className="text-center">Enter your new password below.</CardDescription>
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+          <CardDescription>{message}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input type="hidden" name="token" value={token} />
-
-            <div className="space-y-2">
-              <Label htmlFor="password">New Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Enter new password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isPending}
-                minLength={6}
-              />
+          {isValidToken ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">New Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              {isError && <p className="text-sm text-red-500">{message}</p>}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  "Reset Password"
+                )}
+              </Button>
+            </form>
+          ) : (
+            <div className="text-center">
+              <p className="text-sm text-red-500 mb-4">{message}</p>
+              <Link href="/auth/forgot-password" className="underline text-sm">
+                Request a new reset link
+              </Link>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={isPending}
-                minLength={6}
-              />
-            </div>
-
-            {message && message !== "Password reset successful" && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertDescription className="text-red-800">{message}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Resetting..." : "Reset Password"}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <Link href="/auth/signin" className="text-sm text-blue-600 hover:text-blue-500">
+          )}
+          <div className="mt-4 text-center text-sm">
+            <Link href="/auth/signin" className="underline">
               Back to Sign In
             </Link>
           </div>
