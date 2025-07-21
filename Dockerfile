@@ -1,30 +1,29 @@
-# 1. Install dependencies
-FROM node:18-alpine AS deps
+# Use a Node.js 20 base image
+FROM node:20-alpine
+
+# Set working directory
 WORKDIR /app
-RUN npm install -g pnpm
+
+# Copy package.json and pnpm-lock.yaml
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
 
-# 2. Build the application
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Install pnpm globally
 RUN npm install -g pnpm
-RUN npx prisma generate
-RUN pnpm build
 
-# 3. Production image
-FROM node:18-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED 1
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-USER nextjs
+# Install dependencies using pnpm
+RUN pnpm install --prod --frozen-lockfile
+
+# Copy the rest of the application code
+COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build the Next.js application
+RUN pnpm run build
+
+# Expose the port the app runs on
 EXPOSE 3000
-ENV PORT 3000
-CMD ["node", "server.js"]
+
+# Command to run the application
+CMD ["pnpm", "start"]

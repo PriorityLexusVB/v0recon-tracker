@@ -1,34 +1,51 @@
 "use client"
 
-import { useVehicleStore } from "@/lib/store"
-import VehicleCard from "./vehicle-card"
-import { Car } from "lucide-react"
+import { VehicleCard } from "@/components/vehicle-card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Frown } from "lucide-react"
+import type { Vehicle } from "@/lib/types"
 
-export default function VehicleGrid() {
-  const { filteredVehicles, loading } = useVehicleStore()
+interface VehicleGridProps {
+  vehicles: Vehicle[]
+  loading: boolean
+  error: string | null
+}
 
+export function VehicleGrid({ vehicles, loading, error }: VehicleGridProps) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-[300px] w-full rounded-lg" />
+        ))}
       </div>
     )
   }
 
-  if (filteredVehicles.length === 0) {
+  if (error) {
+    return (
+      <Alert variant="destructive" className="max-w-md mx-auto">
+        <Frown className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (vehicles.length === 0) {
     return (
       <div className="text-center py-12">
-        <Car className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-sm font-medium text-gray-900">No vehicles found</h3>
-        <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
+        <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-300">No Vehicles Found</h2>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">Adjust your filters or add new vehicles to get started.</p>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {filteredVehicles.map((vehicle) => (
-        <VehicleCard key={vehicle.vin} vehicle={vehicle} />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {vehicles.map((vehicle) => (
+        <VehicleCard key={vehicle.id} vehicle={vehicle} />
       ))}
     </div>
   )

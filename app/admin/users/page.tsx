@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Search, Edit, Trash, ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
-import { fetchUsers, createUser, updateUser, deleteUser } from "@/app/actions/users"
-import { fetchTeams } from "@/app/actions/teams"
+import { fetchUsers, createUser, updateUser, deleteUser } from "@/app/actions/user" // Corrected import path
+import { fetchTeamsForSelect } from "@/app/actions/teams" // Corrected import path
 import type { User, Team } from "@/lib/types" // Assuming you have these types defined
 
 export default function UsersPage() {
@@ -36,9 +36,13 @@ export default function UsersPage() {
   const loadUsers = async () => {
     setLoading(true)
     try {
-      const { users, totalPages } = await fetchUsers(searchQuery, currentPage, limit)
-      setUsers(users)
-      setTotalPages(totalPages)
+      const { users, totalPages, success, message } = await fetchUsers(searchQuery, currentPage, limit)
+      if (success) {
+        setUsers(users)
+        setTotalPages(totalPages)
+      } else {
+        toast.error(message || "Failed to load users.")
+      }
     } catch (error) {
       toast.error("Failed to load users.")
       console.error("Error loading users:", error)
@@ -49,8 +53,12 @@ export default function UsersPage() {
 
   const loadTeams = async () => {
     try {
-      const { teams } = await fetchTeams("", 1, 100) // Fetch all teams for selection
-      setTeams(teams)
+      const { teams, success, message } = await fetchTeamsForSelect()
+      if (success) {
+        setTeams(teams)
+      } else {
+        toast.error(message || "Failed to load teams for selection.")
+      }
     } catch (error) {
       toast.error("Failed to load teams for selection.")
       console.error("Error loading teams:", error)
@@ -75,9 +83,13 @@ export default function UsersPage() {
     }
     startTransition(async () => {
       try {
-        await deleteUser(id)
-        toast.success("User deleted successfully.")
-        loadUsers()
+        const result = await deleteUser(id)
+        if (result.success) {
+          toast.success("User deleted successfully.")
+          loadUsers()
+        } else {
+          toast.error(result.message || "Failed to delete user.")
+        }
       } catch (error) {
         toast.error("Failed to delete user.")
         console.error("Error deleting user:", error)

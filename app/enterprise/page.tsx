@@ -10,7 +10,20 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Building2, Users, Shield, BarChart3, MapPin, Zap, Database, Lock, UserCheck, Activity } from "lucide-react"
+import {
+  Building2,
+  UsersIcon,
+  ShieldIcon,
+  BarChart3,
+  MapPin,
+  Zap,
+  Database,
+  Lock,
+  UserCheck,
+  Activity,
+} from "lucide-react"
+import { CheckCircle, BarChart, Shield } from "lucide-react"
+import Link from "next/link"
 
 interface Location {
   id: string
@@ -88,10 +101,98 @@ export default function EnterprisePage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Enterprise Management</h1>
-        <p className="text-gray-600">Multi-location management, security, and performance optimization</p>
+    <div className="container mx-auto py-12 px-4 md:px-6 space-y-12">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-50 mb-4">Recon Tracker Enterprise Solutions</h1>
+        <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+          Scale your reconditioning operations with advanced features, dedicated support, and robust security designed
+          for large dealerships and multi-location enterprises.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <Card className="flex flex-col items-center text-center p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <UsersIcon className="h-12 w-12 text-primary mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Advanced User & Team Management</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4">
+            Granular role-based access control, multi-team support, and centralized user directories for seamless
+            operations across your organization.
+          </CardDescription>
+          <ul className="text-left text-gray-700 dark:text-gray-300 space-y-2 mb-6">
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> Unlimited Users & Teams
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> Custom Roles & Permissions
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> SSO / SAML Integration
+            </li>
+          </ul>
+          <Button variant="outline" className="mt-auto bg-transparent">
+            Learn More
+          </Button>
+        </Card>
+
+        <Card className="flex flex-col items-center text-center p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <BarChart className="h-12 w-12 text-primary mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Comprehensive Analytics & Reporting</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4">
+            Gain deep insights into your recon process with customizable dashboards, detailed reports, and predictive
+            analytics.
+          </CardDescription>
+          <ul className="text-left text-gray-700 dark:text-gray-300 space-y-2 mb-6">
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> Multi-Location Performance
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> Custom Report Builder
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> API Access for BI Tools
+            </li>
+          </ul>
+          <Button variant="outline" className="mt-auto bg-transparent">
+            Request Demo
+          </Button>
+        </Card>
+
+        <Card className="flex flex-col items-center text-center p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <ShieldIcon className="h-12 w-12 text-primary mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Enterprise-Grade Security & Compliance</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4">
+            Protect your sensitive data with advanced security measures, compliance certifications, and dedicated
+            infrastructure.
+          </CardDescription>
+          <ul className="text-left text-gray-700 dark:text-gray-300 space-y-2 mb-6">
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> Data Encryption (in-transit & at-rest)
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> Audit Logs & Activity Tracking
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" /> SOC 2 Type II Compliance
+            </li>
+          </ul>
+          <Button variant="outline" className="mt-auto bg-transparent">
+            Contact Sales
+          </Button>
+        </Card>
+      </div>
+
+      <div className="text-center mt-16">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-4">Ready to Transform Your Operations?</h2>
+        <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+          Our team is ready to discuss your specific needs and tailor a solution that drives efficiency and
+          profitability.
+        </p>
+        <Link href="/contact" passHref>
+          <Button size="lg" className="px-8 py-3 text-lg">
+            Get a Custom Quote
+            <Zap className="ml-2 h-6 w-6" />
+          </Button>
+        </Link>
       </div>
 
       <Tabs defaultValue="locations" className="space-y-6">
@@ -130,7 +231,7 @@ export default function EnterprisePage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <UsersIcon className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{locations.reduce((sum, loc) => sum + loc.teamCount, 0)}</div>
@@ -208,7 +309,7 @@ export default function EnterprisePage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
+                <ShieldIcon className="h-5 w-5" />
                 Authentication & Access Control
               </CardTitle>
               <CardDescription>Configure security settings and access controls</CardDescription>

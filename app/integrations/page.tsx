@@ -4,8 +4,6 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   CheckCircle,
   AlertCircle,
@@ -19,9 +17,14 @@ import {
   Clock,
   Code,
   Settings,
-  Play,
+  Plug,
+  MessageSquare,
+  Mail,
+  FileSpreadsheet,
 } from "lucide-react"
 import { toast } from "sonner"
+import Link from "next/link"
+import { ArrowRight } from "lucide-react" // Import ArrowRight
 
 interface ConnectionTestResult {
   success: boolean
@@ -129,360 +132,222 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">vAuto Integration</h1>
-          <p className="text-muted-foreground">Your vAuto inventory connected via Google Sheets</p>
-        </div>
-        <Button asChild>
-          <a href="/integrations/test">
-            <Play className="h-4 w-4 mr-2" />
-            Detailed Test
-          </a>
-        </Button>
+    <div className="container mx-auto py-12 px-4 md:px-6">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-50 mb-4">Integrations & API</h1>
+        <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+          Connect Recon Tracker with your existing tools and workflows to automate data flow, enhance communication, and
+          streamline your reconditioning process.
+        </p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="connection">Connection</TabsTrigger>
-          <TabsTrigger value="mobile-setup">Mobile Setup</TabsTrigger>
-          <TabsTrigger value="data-analysis">Data Analysis</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Google Sheets Integration */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <FileSpreadsheet className="h-12 w-12 text-green-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Google Sheets Sync</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Automatically import vehicle data from your Google Sheets (e.g., vAuto exports) and keep your Recon Tracker
+            dashboard up-to-date.
+          </CardDescription>
+          <Link href="/integrations/google-sheets" passHref>
+            <Button variant="outline" className="w-full mt-auto bg-transparent">
+              Configure
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </Card>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5 text-blue-600" />
-                  vAuto Integration Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(testResult?.success)}
-                    <span className="text-sm font-medium">{getStatusText(testResult?.success)}</span>
-                  </div>
-                  <Badge className={getStatusColor(testResult?.success)}>
-                    {testResult?.success && testResult.vehicleCount > 0
-                      ? `${testResult.vehicleCount} vehicles`
-                      : getStatusText(testResult?.success)}
-                  </Badge>
-                </div>
+        {/* SMS Notifications Integration */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <MessageSquare className="h-12 w-12 text-blue-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">SMS Notifications</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Send real-time SMS alerts to team members for critical updates, status changes, and assignments.
+          </CardDescription>
+          <Link href="/integrations/sms" passHref>
+            <Button variant="outline" className="w-full mt-auto bg-transparent">
+              Configure
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </Card>
 
-                {testResult && (
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3 w-3" />
-                      <span>Response time: {testResult.responseTime}ms</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Code className="h-3 w-3" />
-                      <span>{testResult.integration}</span>
-                    </div>
-                    <p>Last tested: {new Date(testResult.timestamp).toLocaleString()}</p>
-                  </div>
-                )}
+        {/* Email Notifications Integration */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <Mail className="h-12 w-12 text-red-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Email Notifications</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Set up automated email notifications for various events, daily summaries, and performance reports.
+          </CardDescription>
+          <Link href="/integrations/email" passHref>
+            <Button variant="outline" className="w-full mt-auto bg-transparent">
+              Configure
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </Card>
 
-                <p className="text-sm text-gray-600">
-                  {testResult?.success
-                    ? "Your vAuto inventory is successfully connected via Google Sheets"
-                    : "Connect your vAuto inventory feed through Google Sheets automation"}
-                </p>
+        {/* Webhooks & API Access */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <Plug className="h-12 w-12 text-purple-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Webhooks & API</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Integrate Recon Tracker with any third-party system using our flexible webhook and REST API. Build custom
+            automations and data flows.
+          </CardDescription>
+          <Link href="/integrations/api-docs" passHref>
+            <Button variant="outline" className="w-full mt-auto bg-transparent">
+              View API Docs
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </Card>
 
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={testGoogleSheetsConnection} disabled={isLoading}>
-                    {isLoading ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <TestTube className="h-3 w-3 mr-1" />
-                    )}
-                    Test Connection
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => window.open(sheetUrl, "_blank")}>
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Open Sheet
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Database Direct Access (Advanced) */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <Database className="h-12 w-12 text-gray-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Database Access</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            For advanced users, direct read-only access to your underlying database for complex reporting and data
+            warehousing. (Requires Enterprise Plan)
+          </CardDescription>
+          <Button variant="outline" className="w-full mt-auto bg-transparent" disabled>
+            Contact Sales
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-5 w-5 text-green-600" />
-                  Mobile Dashboard
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium">Ready</span>
-                  </div>
-                  <Badge variant="secondary">Live Data</Badge>
-                </div>
+        {/* Custom Integration Development */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <Settings className="h-12 w-12 text-orange-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Custom Integrations</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Need a specific integration not listed? Our team can work with you to develop custom connectors for your
+            unique business needs.
+          </CardDescription>
+          <Link href="/contact" passHref>
+            <Button variant="outline" className="w-full mt-auto bg-transparent">
+              Request Custom Integration
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </Card>
 
-                <p className="text-sm text-gray-600">
-                  Mobile dashboard is ready for your team with real-time vAuto data sync
-                </p>
-
-                <div className="flex gap-2">
-                  <Button size="sm" asChild>
-                    <a href="/mobile" target="_blank" rel="noopener noreferrer">
-                      <Smartphone className="h-3 w-3 mr-1" />
-                      Open Mobile
-                    </a>
-                  </Button>
-                  <Button size="sm" variant="outline" asChild>
-                    <a href="/integrations/test">
-                      <TestTube className="h-3 w-3 mr-1" />
-                      Run Test
-                    </a>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        {/* vAuto Integration Overview */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <Database className="h-12 w-12 text-blue-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">vAuto Integration</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Your vAuto inventory connected via Google Sheets
+          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {getStatusIcon(testResult?.success)}
+              <span className="text-sm font-medium">{getStatusText(testResult?.success)}</span>
+            </div>
+            <Badge className={getStatusColor(testResult?.success)}>
+              {testResult?.success && testResult.vehicleCount > 0
+                ? `${testResult.vehicleCount} vehicles`
+                : getStatusText(testResult?.success)}
+            </Badge>
           </div>
 
-          {/* Connection Status Alerts */}
-          {testResult?.success === false && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>vAuto Integration Issue:</strong> {testResult.message}
-                <br />
-                <br />
-                <strong>Troubleshooting Steps:</strong>
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Make sure your Google Sheet is shared publicly (Anyone with the link can view)</li>
-                  <li>Verify the "Shop Tracker" tab exists with vehicle data</li>
-                  <li>Run your Google Apps Script to update the Shop Tracker from vAuto Feed</li>
-                  <li>Check that both "vAuto Feed" and "Shop Tracker" tabs are present</li>
-                </ul>
-                <div className="mt-3">
-                  <Button size="sm" asChild>
-                    <a href="/integrations/test">
-                      <TestTube className="h-3 w-3 mr-1" />
-                      Run Detailed Test
-                    </a>
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+          {testResult && (
+            <div className="text-xs text-gray-500 space-y-1">
+              <div className="flex items-center gap-2">
+                <Clock className="h-3 w-3" />
+                <span>Response time: {testResult.responseTime}ms</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Code className="h-3 w-3" />
+                <span>{testResult.integration}</span>
+              </div>
+              <p>Last tested: {new Date(testResult.timestamp).toLocaleString()}</p>
+            </div>
           )}
 
-          {testResult?.success && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>✅ vAuto Integration Active!</strong>
-                <br />
-                Connected to {testResult.vehicleCount} vehicles in {testResult.responseTime}ms via{" "}
-                {testResult.integration}
-                {testResult.analysis && (
-                  <>
-                    <br />📊 Status: {testResult.analysis.throughShop} in shop, {testResult.analysis.detailComplete}{" "}
-                    completed, {testResult.analysis.overdue} overdue
-                    <br />📈 Average days in inventory: {testResult.analysis.avgDaysInInventory} days
-                  </>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
+          <p className="text-sm text-gray-600">
+            {testResult?.success
+              ? "Your vAuto inventory is successfully connected via Google Sheets"
+              : "Connect your vAuto inventory feed through Google Sheets automation"}
+          </p>
 
-          {/* Live Data Preview */}
-          {testResult?.success && testResult.sampleData && testResult.sampleData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    Live vAuto Data Preview
-                  </div>
-                  <Badge variant="outline">{testResult.vehicleCount} total vehicles</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {testResult.sampleData.slice(0, 5).map((vehicle: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          {vehicle.year} {vehicle.make} {vehicle.model}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Stock: {vehicle.stock} • {vehicle.daysInInventory} days in inventory
-                        </p>
-                        {vehicle.inventoryDate && (
-                          <p className="text-xs text-gray-400">Inventory: {vehicle.inventoryDate}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant={vehicle.throughShop ? "default" : "secondary"} className="text-xs">
-                          Shop: {vehicle.throughShop ? "✓" : "○"}
-                        </Badge>
-                        <Badge variant={vehicle.detailComplete ? "default" : "secondary"} className="text-xs">
-                          Detail: {vehicle.detailComplete ? "✓" : "○"}
-                        </Badge>
-                        {vehicle.daysInInventory > 7 && !vehicle.throughShop && (
-                          <Badge variant="destructive" className="text-xs">
-                            Overdue
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {testResult.vehicleCount > 5 && (
-                    <p className="text-xs text-gray-500 text-center pt-2">
-                      And {testResult.vehicleCount - 5} more vehicles from your vAuto feed...
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={testGoogleSheetsConnection} disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <TestTube className="h-3 w-3 mr-1" />}
+              Test Connection
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => window.open(sheetUrl, "_blank")}>
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Open Sheet
+            </Button>
+          </div>
+        </Card>
 
-        <TabsContent value="connection" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Your vAuto Google Sheet Connection
-                <Badge className={getStatusColor(testResult?.success)}>{getStatusText(testResult?.success)}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Google Sheets URL</label>
-                <div className="flex gap-2">
-                  <input value={sheetUrl} readOnly className="flex-1 bg-gray-50 text-xs p-2 border rounded" />
-                  <Button variant="outline" size="icon" onClick={() => window.open(sheetUrl, "_blank")}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </div>
+        {/* Mobile Dashboard Setup */}
+        <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <Smartphone className="h-12 w-12 text-green-600 mb-4" />
+          <CardTitle className="text-2xl font-semibold mb-2">Mobile Dashboard Setup</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            Get your team started with the mobile interface
+          </CardDescription>
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-2">Step 1: Share the Mobile URL</h4>
+              <div className="flex gap-2">
+                <input
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/mobile`}
+                  readOnly
+                  className="flex-1 bg-gray-50 text-sm p-2 border rounded"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${typeof window !== "undefined" ? window.location.origin : ""}/mobile`,
+                    )
+                    toast.success("Mobile URL copied to clipboard!")
+                  }}
+                >
+                  Copy
+                </Button>
               </div>
+              <p className="text-xs text-gray-600 mt-2">Share this URL with your team members</p>
+            </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Connection Test</label>
-                <div className="flex gap-2">
-                  <Button onClick={testGoogleSheetsConnection} disabled={isLoading} className="flex-1" size="lg">
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <TestTube className="h-4 w-4 mr-2" />
-                    )}
-                    {isLoading ? "Testing vAuto Connection..." : "Test vAuto Integration"}
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <a href="/integrations/test">
-                      <Settings className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-2">Step 2: Bookmark on Mobile Devices</h4>
+              <p className="text-sm text-gray-600 mb-2">
+                Have team members bookmark the mobile URL on their phones for quick access
+              </p>
+              <ul className="text-xs text-gray-500 space-y-1">
+                <li>• iPhone: Safari → Share → Add to Home Screen</li>
+                <li>• Android: Chrome → Menu → Add to Home screen</li>
+              </ul>
+            </div>
 
-              {testResult && (
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <h4 className="font-medium mb-2">Last Test Results</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Status:</span>
-                      <span className={testResult.success ? "text-green-600" : "text-red-600"}>
-                        {testResult.success ? "✅ Connected" : "❌ Failed"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Vehicles Found:</span>
-                      <span className="font-medium">{testResult.vehicleCount}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Response Time:</span>
-                      <span>{testResult.responseTime}ms</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Integration:</span>
-                      <span>{testResult.integration}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Last Updated:</span>
-                      <span>{new Date(testResult.timestamp).toLocaleString()}</span>
-                    </div>
-                    {testResult.message && (
-                      <div className="pt-2 border-t">
-                        <span className="text-gray-600">Message:</span>
-                        <p className="text-xs mt-1">{testResult.message}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-2">Step 3: Test Mobile Access</h4>
+              <Button asChild>
+                <a href="/mobile" target="_blank" rel="noopener noreferrer">
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Open Mobile Dashboard
+                </a>
+              </Button>
+            </div>
+          </div>
+        </Card>
 
-        <TabsContent value="mobile-setup" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>📱 Mobile Dashboard Setup</CardTitle>
-              <CardDescription>Get your team started with the mobile interface</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <h4 className="font-medium mb-2">Step 1: Share the Mobile URL</h4>
-                  <div className="flex gap-2">
-                    <input
-                      value={`${typeof window !== "undefined" ? window.location.origin : ""}/mobile`}
-                      readOnly
-                      className="flex-1 bg-gray-50 text-sm p-2 border rounded"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${typeof window !== "undefined" ? window.location.origin : ""}/mobile`,
-                        )
-                        toast.success("Mobile URL copied to clipboard!")
-                      }}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">Share this URL with your team members</p>
-                </div>
-
-                <div className="border rounded-lg p-4">
-                  <h4 className="font-medium mb-2">Step 2: Bookmark on Mobile Devices</h4>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Have team members bookmark the mobile URL on their phones for quick access
-                  </p>
-                  <ul className="text-xs text-gray-500 space-y-1">
-                    <li>• iPhone: Safari → Share → Add to Home Screen</li>
-                    <li>• Android: Chrome → Menu → Add to Home screen</li>
-                  </ul>
-                </div>
-
-                <div className="border rounded-lg p-4">
-                  <h4 className="font-medium mb-2">Step 3: Test Mobile Access</h4>
-                  <Button asChild>
-                    <a href="/mobile" target="_blank" rel="noopener noreferrer">
-                      <Smartphone className="h-4 w-4 mr-2" />
-                      Open Mobile Dashboard
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="data-analysis" className="space-y-6">
-          {testResult?.analysis && (
+        {/* Data Analysis */}
+        {testResult?.analysis && (
+          <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+            <BarChart3 className="h-12 w-12 text-gray-600 mb-4" />
+            <CardTitle className="text-2xl font-semibold mb-2">Data Analysis</CardTitle>
+            <CardDescription className="text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+              View detailed analysis of your vehicle inventory data.
+            </CardDescription>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
@@ -547,28 +412,28 @@ export default function IntegrationsPage() {
                 </CardContent>
               </Card>
             </div>
-          )}
+          </Card>
+        )}
 
-          {!testResult?.analysis && (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">Run a connection test to see data analysis</p>
-                  <Button className="mt-4" onClick={testGoogleSheetsConnection} disabled={isLoading}>
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <TestTube className="h-4 w-4 mr-2" />
-                    )}
-                    Test vAuto Connection
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+        {!testResult?.analysis && (
+          <Card className="flex flex-col p-6 shadow-lg hover:shadow-xl transition-shadow">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">Run a connection test to see data analysis</p>
+                <Button className="mt-4" onClick={testGoogleSheetsConnection} disabled={isLoading}>
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <TestTube className="h-4 w-4 mr-2" />
+                  )}
+                  Test vAuto Connection
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }

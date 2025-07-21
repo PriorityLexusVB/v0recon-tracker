@@ -1,159 +1,78 @@
-"use client"
-
-import { useState, useEffect } from "react"
 import { VehicleGrid } from "@/components/vehicle-grid"
 import { VehicleFilters } from "@/components/vehicle-filters"
-import { Statsummary } from "@/components/stats-summary"
-import { CompletedVehiclesToggle } from "@/components/completed-vehicles-toggle"
-import { CompletedVehiclesPanel } from "@/components/completed-vehicles-panel"
+import { fetchVehicles } from "@/app/actions/vehicles"
+import { Suspense } from "react"
+import { Loader2 } from "lucide-react"
+import { AddVehicleForm } from "@/components/add-vehicle-form"
+import { fetchUsersForSelect } from "@/app/actions/users"
 
-interface Vehicle {
-  id: string
-  vin: string
-  make: string
-  model: string
-  year: number
-  color: string | null
-  status: string
-  priority: string
-  location: string | null
-  notes: string | null
-  createdAt: Date
-  updatedAt: Date
-  completedAt: Date | null
+export const dynamic = "force-dynamic"
+
+interface ReconCardsPageProps {
+  searchParams: {
+    query?: string
+    status?: string
+    assignedTo?: string
+    page?: string
+  }
 }
 
-export default function ReconCardsPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [makeFilter, setMakeFilter] = useState("all")
-  const [priorityFilter, setPriorityFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("newest")
-  const [showCompleted, setShowCompleted] = useState(false)
+export default async function ReconCardsPage({ searchParams }: ReconCardsPageProps) {
+  const query = searchParams.query || ""
+  const status = searchParams.status || "ALL"
+  const assignedTo = searchParams.assignedTo || "ALL"
+  const page = Number.parseInt(searchParams.page || "1")
 
-  useEffect(() => {
-    fetchVehicles()
-  }, [])
+  const { vehicles, totalPages, currentPage, success, message } = await fetchVehicles(query, status, assignedTo, page)
+  const { users: usersForSelect, success: usersSuccess, message: usersMessage } = await fetchUsersForSelect()
 
-  const fetchVehicles = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch("/api/v1/vehicles")
-      if (response.ok) {
-        const data = await response.json()
-        setVehicles(data)
-      } else {
-        console.error("Failed to fetch vehicles")
-      }
-    } catch (error) {
-      console.error("Error fetching vehicles:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filterAndSortVehicles = (vehicles: Vehicle[]) => {
-    const filtered = vehicles.filter((vehicle) => {
-      // Status filter
-      if (statusFilter !== "all" && vehicle.status !== statusFilter) {
-        return false
-      }
-
-      // Make filter
-      if (makeFilter !== "all" && vehicle.make !== makeFilter) {
-        return false
-      }
-
-      // Priority filter
-      if (priorityFilter !== "all" && vehicle.priority !== priorityFilter) {
-        return false
-      }
-
-      return true
-    })
-
-    // Sort vehicles
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        case "oldest":
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        case "priority":
-          const priorityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 }
-          return (
-            priorityOrder[b.priority as keyof typeof priorityOrder] -
-            priorityOrder[a.priority as keyof typeof priorityOrder]
-          )
-        case "make":
-          return a.make.localeCompare(b.make)
-        case "year":
-          return b.year - a.year
-        default:
-          return 0
-      }
-    })
-
-    return filtered
-  }
-
-  const filteredVehicles = filterAndSortVehicles(vehicles)
-  const completedVehicles = vehicles.filter((v) => v.status === "COMPLETED")
-  const activeVehicles = vehicles.filter((v) => v.status !== "COMPLETED")
-
-  const stats = {
-    total: vehicles.length,
-    pending: vehicles.filter((v) => v.status === "PENDING").length,
-    inProgress: vehicles.filter((v) => v.status === "IN_PROGRESS").length,
-    completed: completedVehicles.length,
-  }
-
-  if (loading) {
+  if (!success) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading vehicles...</div>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] p-4">
+        <h2 className="text-2xl font-bold text-red-600">Error Loading Vehicles</h2>
+        <p className="text-gray-600 mt-2">{message}</p>
+      </div>
+    )
+  }
+
+  if (!usersSuccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] p-4">
+        <h2 className="text-2xl font-bold text-red-600">Error Loading Users</h2>
+        <p className="text-gray-600 mt-2">{usersMessage}</p>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Vehicle Recon Cards</h1>
-        <CompletedVehiclesToggle
-          showCompleted={showCompleted}
-          onToggle={setShowCompleted}
-          completedCount={completedVehicles.length}
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="ml-2">Loading vehicles...</p>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-6 p-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Recon Vehicles</h1>
+          <AddVehicleForm users={usersForSelect} />
+        </div>
+        <VehicleFilters
+          filters={{ query, status, assignedTo, page }}
+          setFilters={() => {
+            /* Handled by URL search params */
+          }}
+          onApplyFilters={() => {
+            /* No-op, as filters are applied via URL */
+          }}
+          onClearFilters={() => {
+            /* No-op, as filters are applied via URL */
+          }}
         />
+        <VehicleGrid vehicles={vehicles} loading={false} error={null} />
+        {/* Pagination can be added here if needed */}
       </div>
-
-      <Statsummary stats={stats} />
-
-      {!showCompleted ? (
-        <>
-          <VehicleFilters
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            makeFilter={makeFilter}
-            onMakeFilterChange={setMakeFilter}
-            priorityFilter={priorityFilter}
-            onPriorityFilterChange={setPriorityFilter}
-            sortBy={sortBy}
-            onSortByChange={setSortBy}
-            vehicles={activeVehicles}
-          />
-
-          <VehicleGrid
-            vehicles={filteredVehicles.filter((v) => v.status !== "COMPLETED")}
-            onVehicleUpdate={fetchVehicles}
-          />
-        </>
-      ) : (
-        <CompletedVehiclesPanel vehicles={completedVehicles} onVehicleUpdate={fetchVehicles} />
-      )}
-    </div>
+    </Suspense>
   )
 }

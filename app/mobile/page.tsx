@@ -27,12 +27,17 @@ export default function MobileReconPage() {
     setError(null)
     setVehicle(null)
     try {
-      const fetchedVehicle = await fetchVehicleByVin(vin)
-      setVehicle(fetchedVehicle)
-      setCurrentDepartment(fetchedVehicle?.currentLocation || "") // Set current department from vehicle data
+      const result = await fetchVehicleByVin(vin)
+      if (result.success && result.vehicle) {
+        setVehicle(result.vehicle)
+        setCurrentDepartment(result.vehicle.currentLocation || "") // Set current department from vehicle data
+      } else {
+        setError(result.message || "Vehicle not found or an error occurred.")
+        toast.error(result.message || "Vehicle not found.")
+      }
     } catch (err) {
-      setError("Vehicle not found or an error occurred.")
-      toast.error("Vehicle not found.")
+      setError("An unexpected error occurred while fetching vehicle.")
+      toast.error("An unexpected error occurred while fetching vehicle.")
       console.error("Error fetching vehicle:", err)
     } finally {
       setLoading(false)
@@ -44,11 +49,13 @@ export default function MobileReconPage() {
 
     setLoading(true)
     try {
-      await updateVehicleStatus(vehicle.id, newStatus)
-      toast.success(`Vehicle status updated to ${newStatus}.`)
-      // Refresh vehicle data
-      const updatedVehicle = await fetchVehicleByVin(vin)
-      setVehicle(updatedVehicle)
+      const result = await updateVehicleStatus(vehicle.id, newStatus)
+      if (result.success && result.vehicle) {
+        toast.success(`Vehicle status updated to ${newStatus}.`)
+        setVehicle(result.vehicle) // Update local state with the latest vehicle data
+      } else {
+        toast.error(result.message || "Failed to update vehicle status.")
+      }
     } catch (err) {
       toast.error("Failed to update vehicle status.")
       console.error("Error updating status:", err)
@@ -62,18 +69,24 @@ export default function MobileReconPage() {
 
     setLoading(true)
     try {
-      await addTimelineEvent({
+      const result = await addTimelineEvent({
         vehicleId: vehicle.id,
         eventType: eventType,
         description: eventDescription,
         department: currentDepartment || undefined, // Only include if set
-        // userId: 'current_user_id' // In a real app, get current user ID from session
+        userId: undefined, // In a real app, get current user ID from session
       })
-      toast.success("Timeline event added.")
-      setEventDescription("")
-      // Refresh vehicle data to show new timeline event
-      const updatedVehicle = await fetchVehicleByVin(vin)
-      setVehicle(updatedVehicle)
+      if (result.success) {
+        toast.success("Timeline event added.")
+        setEventDescription("")
+        // Refresh vehicle data to show new timeline event
+        const updatedVehicleResult = await fetchVehicleByVin(vin)
+        if (updatedVehicleResult.success && updatedVehicleResult.vehicle) {
+          setVehicle(updatedVehicleResult.vehicle)
+        }
+      } else {
+        toast.error(result.message || "Failed to add timeline event.")
+      }
     } catch (err) {
       toast.error("Failed to add timeline event.")
       console.error("Error adding event:", err)

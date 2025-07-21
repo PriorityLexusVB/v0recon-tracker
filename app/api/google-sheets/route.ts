@@ -3,23 +3,6 @@ import { google } from "googleapis"
 import { prisma } from "@/lib/prisma"
 import { addTimelineEvent } from "@/app/actions/vehicles"
 
-interface Vehicle {
-  id: string
-  vin: string
-  year: string
-  make: string
-  model: string
-  inventoryDate: string
-  throughShop: boolean
-  shopDoneDate: string
-  detailComplete: boolean
-  detailDoneDate: string
-  daysInInventory: number
-  daysToShop: number
-  daysToDetail: number
-  status: "in-shop" | "in-detail" | "completed"
-}
-
 // This route handler is for syncing data from Google Sheets
 // It expects a POST request with a body containing the sheet data
 // For security, you might want to add authentication/authorization to this endpoint

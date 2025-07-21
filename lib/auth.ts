@@ -1,31 +1,92 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-import { prisma } from "./prisma"
+import NextAuth from "next-auth"
+import Credentials from "next-auth/providers/credentials"
+import Google from "next-auth/providers/google"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import { prisma } from "@/lib/prisma"
+import bcrypt from "bcryptjs"
+import type { UserRole } from "@prisma/client"
 
-export async function getCurrentUser() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return null
-  }
+export const {
+  handlers: { GET, POST },
+  auth,
+  signIn,
+  signOut,
+} = NextAuth({
+  adapter: PrismaAdapter(prisma),
+  session: { strategy: "jwt" },
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/signin", // Redirect to signin page on error
+  },
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      authorize: async (credentials) => {
+        const email = credentials.email as string
+        const password = credentials.password as string
 
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: { team: true },
-    })
-    return user
-  } catch (error) {
-    console.error("Error fetching current user:", error)
-    return null
-  }
-}
+        if (!email || !password) {
+          return null
+        }
 
-export async function isAdmin() {
-  const user = await getCurrentUser()
-  return user?.role === "ADMIN"
-}
+        const user = await prisma.user.findUnique({
+          where: { email },
+        })
 
-export async function isManager() {
-  const user = await getCurrentUser()
-  return user?.role === "MANAGER" || user?.role === "ADMIN"
-}
+        if (!user || !user.password) {
+          return null // User not found or no password set (e.g., OAuth user)
+        }
+
+        const isValidPassword = await bcrypt.compare(password, user.password)
+
+        if (!isValidPassword) {
+          return null // Passwords do not match
+        }
+
+        // Return user object with necessary fields for session
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          teamId: user.teamId,
+          department: user.department,
+        }
+      },
+    }),
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id
+        token.role = user.role as UserRole
+        token.teamId = user.teamId
+        token.department = user.department
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string
+        session.user.role = token.role as UserRole
+        session.user.teamId = token.teamId
+        session.user.department = token.department
+      }
+      return session
+    },
+    async redirect({ url, baseUrl }) {
+      // Allows for more flexible redirect logic
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      else if (new URL(url).origin === baseUrl) return url
+      return baseUrl
+    },
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+})

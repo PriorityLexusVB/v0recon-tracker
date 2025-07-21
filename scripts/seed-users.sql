@@ -1,9 +1,31 @@
--- Seed script to create initial users
--- Run this after setting up the database
+-- scripts/seed-users.sql
 
-INSERT INTO User (id, name, email, role, department, phone, isActive, createdAt, updatedAt) VALUES
-('admin-1', 'Sarah Wilson', 'admin@dealership.com', 'ADMIN', 'IT', '555-0101', true, datetime('now'), datetime('now')),
-('manager-1', 'John Smith', 'manager@dealership.com', 'MANAGER', 'Service', '555-0102', true, datetime('now'), datetime('now')),
-('tech-1', 'Mike Johnson', 'tech@dealership.com', 'TECHNICIAN', 'Service', '555-0103', true, datetime('now'), datetime('now')),
-('tech-2', 'Lisa Davis', 'lisa@dealership.com', 'TECHNICIAN', 'Service', '555-0104', true, datetime('now'), datetime('now')),
-('tech-3', 'Robert Brown', 'robert@dealership.com', 'TECHNICIAN', 'Detail', '555-0105', true, datetime('now'), datetime('now'));
+-- Insert sample users if they don't already exist
+-- Passwords should be hashed in a real application. For seeding, we'll use a simple one.
+-- Ensure you have a way to hash these passwords before deploying to production.
+
+-- Admin User
+INSERT INTO "User" (id, name, email, password, role, department, "createdAt", "updatedAt", "teamId")
+VALUES
+  ('user_admin_1', 'Admin User', 'admin@example.com', '$2a$10$abcdefghijklmnopqrstuvwxy', 'ADMIN', 'Management', NOW(), NOW(), NULL)
+ON CONFLICT (id) DO NOTHING;
+
+-- Manager User (Sales Team)
+INSERT INTO "User" (id, name, email, password, role, department, "createdAt", "updatedAt", "teamId")
+VALUES
+  ('user_manager_1', 'Sales Manager', 'manager@example.com', '$2a$10$abcdefghijklmnopqrstuvwxy', 'MANAGER', 'Sales', NOW(), NOW(), 'team_sales_123')
+ON CONFLICT (id) DO NOTHING;
+
+-- Regular User (Service Team)
+INSERT INTO "User" (id, name, email, password, role, department, "createdAt", "updatedAt", "teamId")
+VALUES
+  ('user_user_1', 'Service Tech', 'user@example.com', '$2a$10$abcdefghijklmnopqrstuvwxy', 'USER', 'Service', NOW(), NOW(), 'team_service_456')
+ON CONFLICT (id) DO NOTHING;
+
+-- Another Regular User (Detail Team)
+INSERT INTO "User" (id, name, email, password, role, department, "createdAt", "updatedAt", "teamId")
+VALUES
+  ('user_user_2', 'Detail Specialist', 'detail@example.com', '$2a$10$abcdefghijklmnopqrstuvwxy', 'USER', 'Detail', NOW(), NOW(), 'team_detail_789')
+ON CONFLICT (id) DO NOTHING;
+
+-- Ensure the team IDs match those inserted in seed-teams.sql

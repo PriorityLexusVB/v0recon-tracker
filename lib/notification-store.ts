@@ -1,18 +1,14 @@
 "use client"
 
-// This file could be used for client-side state management for notifications
-// For example, using Zustand or React Context to manage notification display
-// and real-time updates.
-
-// Example (using a simplified approach, not a full state management library)
-
-import { useState, useEffect, useCallback } from "react"
-import type { Notification } from "@prisma/client" // Import Prisma's generated Notification type
+import { create } from "zustand"
 import {
-  getNotificationsForUser,
+  fetchNotifications,
   markNotificationAsRead,
-  getUnreadNotificationsCount,
-} from "@/lib/notification-service" // Import server actions
+  markAllNotificationsAsRead,
+  deleteNotification,
+} from "@/app/actions/notifications"
+import type { Notification, PaginatedResponse } from "@/lib/types"
+import { NotificationStatus } from "@/lib/notification-types"
 
 interface NotificationStore {
   notifications: Notification[]
@@ -21,92 +17,94 @@ interface NotificationStore {
   error: string | null
   fetchNotifications: (page?: number, pageSize?: number) => Promise<void>
   markAsRead: (id: string) => Promise<void>
+  markAllAsRead: () => Promise<void>
+  deleteNotification: (id: string) => Promise<void>
   refreshUnreadCount: () => Promise<void>
 }
 
-export function useNotificationStore(userId: string | undefined): NotificationStore {
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const refreshUnreadCount = useCallback(async () => {
-    if (!userId) {
-      setUnreadCount(0)
-      return
-    }
+export const useNotificationStore = create<NotificationStore>((set) => ({
+  notifications: [],
+  unreadCount: 0,
+  loading: true,
+  error: null,
+  fetchNotifications: async (page = 1, pageSize = 10) => {
+    set({ loading: true, error: null })
     try {
-      const result = await getUnreadNotificationsCount(userId)
+      const result: PaginatedResponse<Notification> = await fetchNotifications(page, pageSize)
       if (result.success) {
-        setUnreadCount(result.count)
+        set({ notifications: result.notifications })
       } else {
-        setError(result.message || "Failed to refresh unread count.")
+        set({ error: result.message || "Failed to fetch notifications." })
       }
     } catch (err) {
-      setError("Failed to refresh unread count.")
-      console.error("Error refreshing unread count:", err)
+      set({ error: "Failed to fetch notifications." })
+      console.error("Error fetching notifications:", err)
+    } finally {
+      set({ loading: false })
     }
-  }, [userId])
-
-  const fetchNotifications = useCallback(
-    async (page = 1, pageSize = 10) => {
-      if (!userId) {
-        setNotifications([])
-        setLoading(false)
-        return
+  },
+  markAsRead: async (id: string) => {
+    try {
+      const result = await markNotificationAsRead(id)
+      if (result.success) {
+        set((state) => ({
+          notifications: state.notifications.map((n) => (n.id === id ? { ...n, status: NotificationStatus.Read } : n)),
+        }))
+        set((state) => ({ unreadCount: state.unreadCount - 1 }))
+      } else {
+        set({ error: result.message || "Failed to mark notification as read." })
       }
-      setLoading(true)
-      setError(null)
-      try {
-        const result = await getNotificationsForUser(userId, page, pageSize)
-        if (result.success) {
-          setNotifications(result.notifications)
-        } else {
-          setError(result.message || "Failed to fetch notifications.")
-        }
-      } catch (err) {
-        setError("Failed to fetch notifications.")
-        console.error("Error fetching notifications:", err)
-      } finally {
-        setLoading(false)
+    } catch (err) {
+      set({ error: "Failed to mark notification as read." })
+      console.error("Error marking notification as read:", err)
+    }
+  },
+  markAllAsRead: async () => {
+    try {
+      const result = await markAllNotificationsAsRead()
+      if (result.success) {
+        set({ notifications: result.notifications.map((n) => ({ ...n, status: NotificationStatus.Read })) })
+        set({ unreadCount: 0 })
+      } else {
+        set({ error: result.message || "Failed to mark all notifications as read." })
       }
-    },
-    [userId],
-  )
-
-  const markAsRead = useCallback(
-    async (id: string) => {
-      try {
-        const result = await markNotificationAsRead(id)
-        if (result.success) {
-          setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-          refreshUnreadCount() // Update unread count after marking as read
-        } else {
-          setError(result.message || "Failed to mark notification as read.")
-        }
-      } catch (err) {
-        setError("Failed to mark notification as read.")
-        console.error("Error marking notification as read:", err)
+    } catch (err) {
+      set({ error: "Failed to mark all notifications as read." })
+      console.error("Error marking all notifications as read:", err)
+    }
+  },
+  deleteNotification: async (id: string) => {
+    try {
+      const result = await deleteNotification(id)
+      if (result.success) {
+        set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) }))
+      } else {
+        set({ error: result.message || "Failed to delete notification." })
       }
-    },
-    [refreshUnreadCount],
-  )
+    } catch (err) {
+      set({ error: "Failed to delete notification." })
+      console.error("Error deleting notification:", err)
+    }
+  },
+  refreshUnreadCount: async () => {
+    set({ loading: true, error: null })
+    try {
+      const result = await fetchNotifications(1, 100) // Fetch all notifications to count unread
+      if (result.success) {
+        const count = result.notifications.filter((n) => n.status !== NotificationStatus.Read).length
+        set({ unreadCount: count })
+      } else {
+        set({ error: result.message || "Failed to refresh unread count." })
+      }
+    } catch (err) {
+      set({ error: "Failed to refresh unread count." })
+      console.error("Error refreshing unread count:", err)
+    } finally {
+      set({ loading: false })
+    }
+  },
+}))
 
-  useEffect(() => {
-    fetchNotifications()
-    refreshUnreadCount()
-    // Optionally, set up a polling mechanism or WebSocket for real-time updates
-    // const interval = setInterval(refreshUnreadCount, 60000); // Poll every minute
-    // return () => clearInterval(interval);
-  }, [userId, fetchNotifications, refreshUnreadCount])
-
-  return {
-    notifications,
-    unreadCount,
-    loading,
-    error,
-    fetchNotifications,
-    markAsRead,
-    refreshUnreadCount,
-  }
-}
+// Optionally, set up a polling mechanism or WebSocket for real-time updates
+// const interval = setInterval(useNotificationStore.getState().refreshUnreadCount, 60000); // Poll every minute
+// return () => clearInterval(interval);

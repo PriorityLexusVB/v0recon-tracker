@@ -1,11 +1,15 @@
 "use client"
 
+import { Label } from "@/components/ui/label"
+
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   CheckCircle,
   AlertTriangle,
@@ -17,6 +21,7 @@ import {
   BarChart3,
   TestTube,
   RefreshCw,
+  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -40,9 +45,11 @@ interface TestResult {
   }
   error?: any
   rawResponse?: any
+  troubleshooting?: string[]
 }
 
 export default function IntegrationTestPage() {
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState(process.env.NEXT_PUBLIC_GOOGLE_SHEETS_URL || "")
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
@@ -91,6 +98,7 @@ export default function IntegrationTestPage() {
         analysis: data.analysis,
         error: data.error,
         rawResponse: data,
+        troubleshooting: data.troubleshooting || [],
       }
 
       setTestResult(result)
@@ -116,8 +124,34 @@ export default function IntegrationTestPage() {
         timestamp: new Date().toISOString(),
         sheetUrl,
         integration: "vAuto via Google Apps Script",
+        troubleshooting: [],
       })
       toast.error("❌ Network error during test")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleTestGoogleSheets = async () => {
+    setIsLoading(true)
+    setTestResult(null)
+    try {
+      const response = await fetch("/api/google-sheets", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      const data = await response.json()
+      setTestResult(data)
+      if (data.success) {
+        toast.success("Google Sheets integration test successful!")
+      } else {
+        toast.error("Google Sheets integration test failed.")
+      }
+    } catch (error: any) {
+      setTestResult({ success: false, error: error.message || "An unexpected error occurred." })
+      toast.error("An error occurred during the test.")
     } finally {
       setIsLoading(false)
     }
@@ -141,6 +175,55 @@ export default function IntegrationTestPage() {
           </Button>
         </div>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Google Sheets Integration Test</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="google-sheets-url">Google Sheets URL (from .env.local)</Label>
+            <Input
+              id="google-sheets-url"
+              value={googleSheetsUrl}
+              onChange={(e) => setGoogleSheetsUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              disabled
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              This URL is read from your `NEXT_PUBLIC_GOOGLE_SHEETS_URL` environment variable.
+            </p>
+          </div>
+          <Button onClick={handleTestGoogleSheets} disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+            Test Google Sheets Connection
+          </Button>
+
+          {testResult && (
+            <div className="mt-4 p-4 border rounded-md">
+              <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                {testResult.success ? (
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-500" />
+                )}
+                Test Result: {testResult.success ? "Success" : "Failed"}
+              </h3>
+              <Textarea value={JSON.stringify(testResult, null, 2)} readOnly rows={10} className="font-mono text-xs" />
+              {!testResult.success && testResult.troubleshooting && (
+                <div className="mt-4">
+                  <h4 className="font-semibold">Troubleshooting Tips:</h4>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground">
+                    {testResult.troubleshooting.map((tip: string, index: number) => (
+                      <li key={index}>{tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Test Status Overview */}
       <div className="grid gap-6 md:grid-cols-4">
