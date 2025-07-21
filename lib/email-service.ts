@@ -1,3 +1,5 @@
+import nodemailer from "nodemailer"
+
 interface EmailNotification {
   to: string
   subject: string
@@ -11,34 +13,64 @@ interface EmailPreferences {
   frequency: "immediate" | "daily" | "weekly"
 }
 
-// Mock email service for when EmailJS is not configured
-const mockEmailService = {
-  async send(notification: EmailNotification) {
-    console.log("Mock Email Service - Would send:", notification)
-    return { success: true, message: "Email sent (mock)" }
+// Configure your email transporter
+// For production, use environment variables for sensitive credentials
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST || "smtp.ethereal.email", // Example: smtp.sendgrid.net
+  port: Number.parseInt(process.env.EMAIL_PORT || "587"), // Example: 587 or 465
+  secure: process.env.EMAIL_SECURE === "true", // Use 'true' if port is 465 (SSL)
+  auth: {
+    user: process.env.EMAIL_USER || "example@ethereal.email", // Your email username
+    pass: process.env.EMAIL_PASSWORD || "password", // Your email password
   },
-}
+})
 
-export async function sendEmailNotification(notification: EmailNotification) {
+// This function sends the actual email using Nodemailer
+async function sendEmail(options: { to: string; subject: string; html: string; from?: string }) {
   try {
-    // Use server-side API route for email sending
-    const response = await fetch("/api/notifications/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(notification),
-    })
-
-    if (!response.ok) {
-      throw new Error("Failed to send email")
+    const mailOptions = {
+      from: options.from || process.env.EMAIL_FROM || "noreply@recontracker.com",
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
     }
 
-    return await response.json()
+    const info = await transporter.sendMail(mailOptions)
+    console.log("Email sent: %s", info.messageId)
+    // Preview only available when sending through an Ethereal account
+    if (process.env.NODE_ENV === "development" && process.env.EMAIL_HOST === "smtp.ethereal.email") {
+      console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info))
+    }
+    return { success: true, message: "Email sent successfully", messageId: info.messageId }
+  } catch (error) {
+    console.error("Error sending email:", error)
+    throw new Error(`Failed to send email: ${error instanceof Error ? error.message : "Unknown error"}`)
+  }
+}
+
+// This is the public facing function used by other parts of the app
+export async function sendEmailNotification(notification: EmailNotification) {
+  try {
+    // You can add logic here to format the message based on type
+    const htmlMessage = `
+      <div style="font-family: sans-serif; line-height: 1.6;">
+        <h2>${notification.subject}</h2>
+        <p>${notification.message}</p>
+        <p>Thank you for using Recon Tracker!</p>
+      </div>
+    `
+    const result = await sendEmail({
+      to: notification.to,
+      subject: notification.subject,
+      html: htmlMessage,
+    })
+    return result
   } catch (error) {
     console.error("Email service error:", error)
-    // Fallback to mock service
-    return mockEmailService.send(notification)
+    return {
+      success: false,
+      message: `Failed to send email: ${error instanceof Error ? error.message : "Unknown error"}`,
+    }
   }
 }
 
@@ -51,24 +83,23 @@ export function getDefaultEmailPreferences(): EmailPreferences {
 }
 
 export async function sendBulkNotifications(notifications: EmailNotification[]) {
-  try {
-    const response = await fetch("/api/notifications/email/bulk", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ notifications }),
-    })
+  const results = await Promise.allSettled(notifications.map((notification) => sendEmailNotification(notification)))
 
-    if (!response.ok) {
-      throw new Error("Failed to send bulk emails")
-    }
+  const successfulSends = results.filter((r) => r.status === "fulfilled" && r.value.success).length
+  const failedSends = results.length - successfulSends
 
-    return await response.json()
-  } catch (error) {
-    console.error("Bulk email service error:", error)
-    // Fallback to individual sends
-    const results = await Promise.allSettled(notifications.map((notification) => mockEmailService.send(notification)))
-    return { success: true, results }
+  if (failedSends > 0) {
+    console.warn(`Sent ${successfulSends} emails successfully, ${failedSends} failed.`)
+  }
+
+  return {
+    success: failedSends === 0,
+    message: `Attempted to send ${notifications.length} emails. ${successfulSends} succeeded, ${failedSends} failed.`,
+    results: results.map((r, index) => ({
+      recipient: notifications[index].to,
+      success: r.status === "fulfilled" && r.value.success,
+      message:
+        r.status === "fulfilled" ? r.value.message : r.reason instanceof Error ? r.reason.message : "Unknown error",
+    })),
   }
 }

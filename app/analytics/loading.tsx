@@ -2,9 +2,8 @@ import { Loader2 } from "lucide-react"
 
 export default function AnalyticsLoading() {
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
-      <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-      <p className="ml-4 text-lg text-gray-600">Loading analytics dashboard...</p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
     </div>
   )
 }

@@ -1,24 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sendEmail } from "@/lib/email-service"
+import { sendBulkNotifications } from "@/lib/email-service"
 
 export async function POST(request: NextRequest) {
   try {
-    const { recipients, subject, body } = await request.json()
+    const { notifications } = await request.json() // Expecting an array of { to, subject, message, type }
 
-    if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !subject || !body) {
+    if (!notifications || !Array.isArray(notifications) || notifications.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields: recipients, subject, body" },
+        { success: false, error: "Missing or invalid 'notifications' array in request body" },
         { status: 400 },
       )
     }
 
-    const results = []
-    for (const recipient of recipients) {
-      const result = await sendEmail({ to: recipient, subject, html: body })
-      results.push({ recipient, success: result.success, message: result.message })
-    }
+    const result = await sendBulkNotifications(notifications)
 
-    return NextResponse.json({ success: true, results })
+    return NextResponse.json(result)
   } catch (error) {
     console.error("Bulk Email API error:", error)
     return NextResponse.json(

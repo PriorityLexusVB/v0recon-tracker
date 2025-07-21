@@ -1,48 +1,37 @@
-import type { Vehicle } from "./types"
+// This file can be used for general data fetching utilities or mock data
+// if you need it for development before connecting to a real database.
+// Since we're using Prisma and server actions, this file might become less critical
+// or could be used for client-side data transformations/caching.
 
-export const generatePlaceholderData = (): Vehicle[] => {
-  const makes = ["Toyota", "Honda", "Ford", "Chevrolet", "Nissan", "BMW", "Mercedes", "Audi"]
-  const models = ["Camry", "Accord", "F-150", "Silverado", "Altima", "3 Series", "C-Class", "A4"]
+// Example: A utility to fetch all available vehicle makes/models (if not from DB)
+export async function getVehicleMakesAndModels() {
+  // In a real app, this might come from a database, an external API, or a static list
+  return [
+    { make: "Toyota", models: ["Camry", "Corolla", "RAV4", "Highlander"] },
+    { make: "Honda", models: ["Civic", "Accord", "CR-V", "Pilot"] },
+    { make: "Ford", models: ["F-150", "Explorer", "Escape", "Mustang"] },
+    { make: "Chevrolet", models: ["Silverado", "Equinox", "Malibu", "Tahoe"] },
+    { make: "BMW", models: ["3 Series", "5 Series", "X3", "X5"] },
+    { make: "Mercedes-Benz", models: ["C-Class", "E-Class", "GLC", "GLE"] },
+  ]
+}
 
-  const vehicles: Vehicle[] = []
+// Example: A utility to get a list of possible vehicle statuses
+export function getVehicleStatuses() {
+  return ["IN_PROGRESS", "COMPLETED", "ON_HOLD", "CANCELED", "PENDING_INSPECTION", "AWAITING_PARTS", "READY_FOR_SALE"]
+}
 
-  for (let i = 0; i < 25; i++) {
-    const make = makes[Math.floor(Math.random() * makes.length)]
-    const model = models[Math.floor(Math.random() * models.length)]
-    const year = 2018 + Math.floor(Math.random() * 6)
-    const inventoryDate = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+// Example: A utility to get a list of possible user roles
+export function getUserRoles() {
+  return ["USER", "MANAGER", "ADMIN"]
+}
 
-    // Generate realistic completion status
-    const throughShop = Math.random() > 0.3
-    const detailComplete = throughShop ? Math.random() > 0.4 : false
-    const photoComplete = detailComplete ? Math.random() > 0.3 : false
+// Example: A utility to get a list of possible user statuses
+export function getUserStatuses() {
+  return ["ACTIVE", "INACTIVE", "PENDING"]
+}
 
-    // Generate dates based on inventory date
-    const shopDone = new Date(inventoryDate.getTime() + Math.random() * 10 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0]
-    const detailDone = new Date(inventoryDate.getTime() + (10 + Math.random() * 5) * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0]
-    const photoDone = new Date(inventoryDate.getTime() + (15 + Math.random() * 5) * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0]
-
-    vehicles.push({
-      vin: `1HGBH41JXMN${String(100000 + i).padStart(6, "0")}`,
-      stock: `ST${String(1000 + i).padStart(4, "0")}`,
-      make,
-      model,
-      year,
-      inventoryDate: inventoryDate.toISOString().split("T")[0],
-      throughShop,
-      detailComplete,
-      photoComplete,
-      shopDone,
-      detailDone,
-      photoDone,
-    })
-  }
-
-  return vehicles
+// Example: A utility to get a list of common departments
+export function getDepartments() {
+  return ["MECHANICAL", "BODY_SHOP", "DETAIL", "PAINT", "TIRE_SHOP", "INSPECTION", "QUALITY_CONTROL", "ADMIN"]
 }

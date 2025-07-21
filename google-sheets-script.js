@@ -7,6 +7,143 @@
 // 3. Run updateShopTrackerFromVauto() to populate the "Shop Tracker" tab
 // 4. Set up a time-based trigger to run this function automatically
 
+var Logger = console
+var ContentService = {
+  createTextOutput: (content) => ({
+    setContent: function (content) {
+      this.content = content
+      return this
+    },
+    setMimeType: function (mimeType) {
+      this.mimeType = mimeType
+      return this
+    },
+    getContent: function () {
+      return this.content
+    },
+  }),
+  MimeType: {
+    JSON: "application/json",
+  },
+}
+
+var SpreadsheetApp = {
+  getActiveSpreadsheet: () => ({
+    getSheetByName: (name) => {
+      // Mock implementation: return a mock sheet or null
+      if (name === "vAuto Feed") {
+        return {
+          getDataRange: () => ({
+            getValues: () => [
+              ["Year", "Make", "Model", "Trim", "Stock #", "Color", "VIN", "Inventory Date", "Price"],
+              ["2023", "Honda", "Civic", "LX", "ST1001", "White", "1HGCM82633A123456", "2024-01-10", "25000"],
+              ["2022", "Toyota", "Corolla", "LE", "ST1002", "Silver", "2T1BURHE0JC123457", "2024-01-12", "23000"],
+              ["2023", "Ford", "F-150", "XLT", "ST1003", "Blue", "1FTFW1ET5DFC12345", "2024-01-08", "45000"],
+            ],
+          }),
+        }
+      } else if (name === "Shop Tracker") {
+        return {
+          getName: () => name,
+          clearContents: () => {},
+          getRange: (row, col, numRows, numCols) => ({
+            setValues: (values) => {},
+            insertCheckboxes: () => {},
+            clearContent: () => {},
+            getValue: () => false, // Mock checkbox value
+            setValue: (value) => {},
+            setNumberFormat: (format) => {},
+          }),
+          clearDataValidations: () => {},
+          setFrozenRows: (rows) => {},
+          setColumnWidth: (col, width) => {},
+          getConditionalFormatRules: () => [],
+          setConditionalFormatRules: (rules) => {},
+          getMaxRows: () => 100, // Mock max rows
+          getMaxColumns: () => 20, // Mock max columns
+        }
+      }
+      return null
+    },
+    insertSheet: (name) => ({
+      getName: () => name,
+      clearContents: () => {},
+      getRange: (row, col, numRows, numCols) => ({
+        setValues: (values) => {},
+        insertCheckboxes: () => {},
+        clearContent: () => {},
+        getValue: () => false,
+        setValue: (value) => {},
+        setNumberFormat: (format) => {},
+      }),
+      clearDataValidations: () => {},
+      setFrozenRows: (rows) => {},
+      setColumnWidth: (col, width) => {},
+      getConditionalFormatRules: () => [],
+      setConditionalFormatRules: (rules) => {},
+      getMaxRows: () => 100,
+      getMaxColumns: () => 20,
+    }),
+    getSpreadsheetTimeZone: () => "America/New_York",
+    getUrl: () => "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+  }),
+  getUi: () => ({
+    alert: (title, message, buttonSet) => {
+      Logger.log(`${title}: ${message}`)
+    },
+    ButtonSet: { OK: "OK" },
+  }),
+  newConditionalFormatRule: () => ({
+    setRanges: (ranges) => ({
+      whenFormulaSatisfied: (formula) => ({
+        setBackground: (color) => ({
+          build: () => ({}),
+        }),
+      }),
+    }),
+  }),
+}
+
+var Browser = {
+  msgBox: (title, message, buttons) => {
+    Logger.log(`${title}: ${message}`)
+  },
+  Buttons: { OK: "OK" },
+}
+
+var Utilities = {
+  formatDate: (date, timeZone, format) => {
+    const options = { year: "numeric", month: "2-digit", day: "2-digit" }
+    return new Date(date).toLocaleDateString("en-US", options)
+  },
+}
+
+var ScriptApp = {
+  getProjectTriggers: () => [],
+  deleteTrigger: (trigger) => {},
+  newTrigger: (functionName) => ({
+    timeBased: function () {
+      return this
+    },
+    everyHours: function (hours) {
+      return this
+    },
+    create: () => {},
+  }),
+}
+
+var Session = {
+  getActiveUser: () => ({
+    getEmail: () => "user@example.com",
+  }),
+}
+
+var MailApp = {
+  sendEmail: (to, subject, body) => {
+    Logger.log(`Email sent to: ${to} with subject: ${subject} and body: ${body}`)
+  },
+}
+
 function doPost(e) {
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Recon")
@@ -451,3 +588,59 @@ function syncAllData() {
   // to periodically sync data from your Recon Tracker system
   console.log("Manual sync triggered")
 }
+
+/**
+ * This Google Apps Script is designed to be deployed as a web app
+ * to allow external services (like your Next.js app) to read data from a Google Sheet.
+ *
+ * To deploy:
+ * 1. Go to Extensions > Apps Script in your Google Sheet.
+ * 2. Copy and paste this code.
+ * 3. Save the project.
+ * 4. Click "Deploy" > "New deployment".
+ * 5. Select "Web app" as the type.
+ * 6. Set "Execute as" to "Me" (your Google account).
+ * 7. Set "Who has access" to "Anyone" (or "Anyone, even anonymous" if no authentication is needed).
+ *    WARNING: "Anyone" means anyone with the URL can access. Consider adding API key validation.
+ * 8. Click "Deploy".
+ * 9. Copy the "Web app URL" and use it as NEXT_PUBLIC_GOOGLE_SHEETS_URL in your .env.local.
+ */
+
+function doGet(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet()
+  var data = sheet.getDataRange().getValues()
+  var headers = data[0]
+  var rows = data.slice(1)
+
+  var result = []
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i]
+    var obj = {}
+    for (var j = 0; j < headers.length; j++) {
+      obj[headers[j]] = row[j]
+    }
+    result.push(obj)
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON)
+}
+
+/**
+ * Example of how to add a simple API key for basic security.
+ * This is NOT robust security, but better than nothing for public access.
+ *
+ * To use:
+ * 1. Define a script property named 'API_KEY' with your secret key.
+ *    (File > Project properties > Script properties tab)
+ * 2. In your Next.js app, send this key in a header (e.g., 'X-API-Key').
+ *
+ * function doGet(e) {
+ *   var API_KEY = PropertiesService.getScriptProperties().getProperty('API_KEY');
+ *   if (e.parameter.api_key !== API_KEY) { // Or check headers: e.parameter.headers['X-API-Key']
+ *     return ContentService.createTextOutput(JSON.stringify({ error: 'Unauthorized' }))
+ *       .setMimeType(ContentService.MimeType.JSON)
+ *       .setStatusCode(401);
+ *   }
+ *   // ... rest of the doGet logic ...
+ * }
+ */

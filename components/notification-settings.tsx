@@ -1,116 +1,124 @@
 "use client"
 
-import type React from "react"
+import { useEffect } from "react"
 
-import { useEffect, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
+import { Loader2, Mail } from "lucide-react"
 import { toast } from "sonner"
-import { getUserProfile, updateNotificationSettings } from "@/app/actions/user"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getDefaultEmailPreferences } from "@/lib/email-service" // Assuming this utility exists
 import { useAuth } from "@/hooks/use-auth"
+import { updateUserNotificationPreferences } from "@/app/actions/users" // Assuming this action exists
 
-export function NotificationSettings() {
-  const { user, isLoading: isLoadingAuth } = useAuth()
-  const [emailNotifications, setEmailNotifications] = useState(false)
-  const [smsNotifications, setSmsNotifications] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
+type NotificationSettingsProps = {}
 
+export function NotificationSettings({}: NotificationSettingsProps) {
+  const { user, isLoading: isUserLoading } = useAuth();
+  const [isPending, startTransition] = useTransition();
+  const [emailEnabled, setEmailEnabled] = useState(true); // Default from getDefaultEmailPreferences
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [emailFrequency, setEmailFrequency] = useState<'immediate' | 'daily' | 'weekly'>('immediate');
+
+  // Load initial settings from user preferences or defaults
   useEffect(() => {
-    if (user?.id) {
-      fetchUserSettings(user.id)
+    if (user) {
+      // In a real app, fetch user's saved preferences from DB
+      // For now, use defaults or mock saved preferences
+      setEmailEnabled(user.emailPreferences?.enabled ?? getDefaultEmailPreferences().enabled);
+      setEmailFrequency(user.emailPreferences?.frequency ?? getDefaultEmailPreferences().frequency);
+      // Assuming SMS/Push preferences would also be part of user model
+      setSmsEnabled(false); // Placeholder
+      setPushEnabled(true); // Placeholder
     }
-  }, [user?.id])
+  }, [user]);
 
-  const fetchUserSettings = async (userId: string) => {
-    setIsLoadingSettings(true)
-    try {
-      const profile = await getUserProfile(userId)
-      if (profile) {
-        setEmailNotifications(profile.emailNotificationsEnabled || false)
-        setSmsNotifications(profile.smsNotificationsEnabled || false)
-      }
-    } catch (error) {
-      console.error("Failed to fetch user settings:", error)
-      toast.error("Failed to load notification settings.")
-    } finally {
-      setIsLoadingSettings(false)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!user?.id) {
-      toast.error("User not authenticated.")
-      return
+  const handleSavePreferences = () => {
+    if (!user) {
+      toast.error("You must be logged in to save preferences.");
+      return;
     }
 
     startTransition(async () => {
-      const formData = new FormData()
-      formData.append("emailNotifications", emailNotifications ? "on" : "off")
-      formData.append("smsNotifications", smsNotifications ? "on" : "off")
+      try {
+        // Construct the preferences object to save
+        const preferences = {
+          emailPreferences: {
+            enabled: emailEnabled,
+            frequency: emailFrequency,
+            types: getDefaultEmailPreferences().types, // Assuming types are fixed for now
+          },
+          // Add SMS and Push preferences here if they are part of the user model
+        };
 
-      const result = await updateNotificationSettings(user.id, formData)
-      if (result.success) {
-        toast.success(result.message)
-      } else {
-        toast.error(result.message)
+        // Call a server action to update user preferences
+        const result = await updateUserNotificationPreferences(user.id, preferences);
+
+        if (result.success) {
+          toast.success("Notification preferences saved successfully.");
+        } else {
+          toast.error(result.message || "Failed to save preferences.");
+        }
+      } catch (error) {
+        console.error("Error saving notification preferences:", error);
+        toast.error("An unexpected error occurred while saving preferences.");
       }
-    })
-  }
+    });
+  };
 
-  if (isLoadingAuth || isLoadingSettings) {
+  if (isUserLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6 flex items-center justify-center h-32">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-          <p className="ml-4 text-gray-600">Loading settings...</p>
-        </CardContent>
+      <Card className="h-[300px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading preferences...</p>
       </Card>
-    )
+    );
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Notification Settings</CardTitle>
-        <CardDescription>Manage your notification preferences.</CardDescription>
+        <CardTitle>Notification Preferences</CardTitle>
+        <CardDescription>Manage how you receive updates and alerts.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="email-notifications">Email Notifications</Label>
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <Label htmlFor="email-notifications">Email Notifications</Label>
+                <p className="text-sm text-muted-foreground">Receive updates via email.</p>
+              </div>
+            </div>
             <Switch
               id="email-notifications"
-              checked={emailNotifications}
-              onCheckedChange={setEmailNotifications}
+              checked={emailEnabled}
+              onCheckedChange={setEmailEnabled}
               disabled={isPending}
             />
           </div>
+          {emailEnabled && (
+            <div className="ml-7">
+              <Label htmlFor="email-frequency">Email Frequency</Label>
+              <Select value={emailFrequency} onValueChange={(value: 'immediate' | 'daily' | 'weekly') => setEmailFrequency(value)} disabled={isPending}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="immediate">Immediate</SelectItem>
+                  <SelectItem value="daily">Daily Digest</SelectItem>
+                  <SelectItem value="weekly">Weekly Summary</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="sms-notifications">SMS Notifications</Label>
-            <Switch
-              id="sms-notifications"
-              checked={smsNotifications}
-              onCheckedChange={setSmsNotifications}
-              disabled={isPending}
-            />
-          </div>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Changes"
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  )
-}
+            <div className="flex items-center gap-2">
+              \

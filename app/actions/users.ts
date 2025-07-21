@@ -1,176 +1,144 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
-import bcrypt from "bcryptjs"
+import { z } from "zod"
+import { hash } from "bcryptjs"
 
-export async function getUsers() {
-  const session = await auth()
+const userSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  role: z.enum(["USER", "ADMIN", "MANAGER"]),
+  status: z.enum(["ACTIVE", "INACTIVE", "PENDING"]),
+  teamId: z.string().optional().nullable(),
+})
 
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized")
-  }
+const createUserSchema = userSchema.omit({ id: true }).extend({
+  password: z.string().min(6, "Password must be at least 6 characters long"),
+})
 
+const updateUserSchema = userSchema.partial().extend({
+  id: z.string(),
+  password: z.string().min(6, "Password must be at least 6 characters long").optional(),
+})
+
+export async function fetchUsers(query = "", page = 1, limit = 10) {
   try {
+    const offset = (page - 1) * limit
     const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-        teamMemberships: {
-          include: {
-            team: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
+      where: {
+        OR: [{ name: { contains: query, mode: "insensitive" } }, { email: { contains: query, mode: "insensitive" } }],
+      },
+      include: {
+        team: true,
       },
       orderBy: {
         createdAt: "desc",
       },
+      skip: offset,
+      take: limit,
     })
 
-    return users
+    const totalUsers = await prisma.user.count({
+      where: {
+        OR: [{ name: { contains: query, mode: "insensitive" } }, { email: { contains: query, mode: "insensitive" } }],
+      },
+    })
+
+    revalidatePath("/admin/users")
+    return { users, totalPages: Math.ceil(totalUsers / limit), currentPage: page }
   } catch (error) {
-    console.error("Error fetching users:", error)
-    throw new Error("Failed to fetch users")
+    console.error("Failed to fetch users:", error)
+    throw new Error("Failed to fetch users.")
+  }
+}
+
+export async function fetchUserById(id: string) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: { team: true },
+    })
+    if (!user) {
+      throw new Error("User not found.")
+    }
+    revalidatePath(`/admin/users/${id}`)
+    return user
+  } catch (error) {
+    console.error(`Failed to fetch user with ID ${id}:`, error)
+    throw new Error(`Failed to fetch user with ID ${id}.`)
   }
 }
 
 export async function createUser(formData: FormData) {
-  const session = await auth()
+  const data = Object.fromEntries(formData.entries())
+  const parsed = createUserSchema.safeParse(data)
 
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized")
+  if (!parsed.success) {
+    return { success: false, errors: parsed.error.flatten().fieldErrors }
   }
 
-  const name = formData.get("name") as string
-  const email = formData.get("email") as string
-  const password = formData.get("password") as string
-  const role = formData.get("role") as string
-
-  if (!name || !email || !password || !role) {
-    throw new Error("All fields are required")
-  }
+  const { name, email, password, role, status, teamId } = parsed.data
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10)
-
+    const hashedPassword = await hash(password, 10)
     await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role,
+        status,
+        teamId: teamId || null,
       },
     })
-
     revalidatePath("/admin/users")
-    return { success: true, message: "User created successfully" }
+    return { success: true, message: "User created successfully." }
   } catch (error) {
-    console.error("Error creating user:", error)
-    if (error.code === "P2002") {
-      throw new Error("Email already exists")
-    }
-    throw new Error("Failed to create user")
+    console.error("Failed to create user:", error)
+    return { success: false, message: "Failed to create user." }
   }
 }
 
-export async function updateUser(id: string, formData: FormData) {
-  const session = await auth()
+export async function updateUser(formData: FormData) {
+  const data = Object.fromEntries(formData.entries())
+  const parsed = updateUserSchema.safeParse(data)
 
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized")
+  if (!parsed.success) {
+    return { success: false, errors: parsed.error.flatten().fieldErrors }
   }
 
-  const name = formData.get("name") as string
-  const email = formData.get("email") as string
-  const role = formData.get("role") as string
-
-  if (!name || !email || !role) {
-    throw new Error("Name, email, and role are required")
-  }
+  const { id, name, email, password, role, status, teamId } = parsed.data
 
   try {
+    const updateData: any = { name, email, role, status, teamId: teamId || null }
+    if (password) {
+      updateData.password = await hash(password, 10)
+    }
+
     await prisma.user.update({
       where: { id },
-      data: {
-        name,
-        email,
-        role,
-      },
+      data: updateData,
     })
-
     revalidatePath("/admin/users")
-    return { success: true, message: "User updated successfully" }
+    revalidatePath(`/admin/users/${id}`)
+    return { success: true, message: "User updated successfully." }
   } catch (error) {
-    console.error("Error updating user:", error)
-    if (error.code === "P2002") {
-      throw new Error("Email already exists")
-    }
-    throw new Error("Failed to update user")
+    console.error("Failed to update user:", error)
+    return { success: false, message: "Failed to update user." }
   }
 }
 
 export async function deleteUser(id: string) {
-  const session = await auth()
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized")
-  }
-
   try {
     await prisma.user.delete({
       where: { id },
     })
-
     revalidatePath("/admin/users")
-    return { success: true, message: "User deleted successfully" }
+    return { success: true, message: "User deleted successfully." }
   } catch (error) {
-    console.error("Error deleting user:", error)
-    throw new Error("Failed to delete user")
-  }
-}
-
-export async function updateUserPassword(id: string, formData: FormData) {
-  const session = await auth()
-
-  if (!session?.user || (session.user.role !== "ADMIN" && session.user.id !== id)) {
-    throw new Error("Unauthorized")
-  }
-
-  const password = formData.get("password") as string
-
-  if (!password) {
-    throw new Error("Password is required")
-  }
-
-  if (password.length < 6) {
-    throw new Error("Password must be at least 6 characters long")
-  }
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    await prisma.user.update({
-      where: { id },
-      data: {
-        password: hashedPassword,
-      },
-    })
-
-    revalidatePath("/admin/users")
-    revalidatePath("/settings")
-    return { success: true, message: "Password updated successfully" }
-  } catch (error) {
-    console.error("Error updating password:", error)
-    throw new Error("Failed to update password")
+    console.error("Failed to delete user:", error)
+    throw new Error("Failed to delete user.")
   }
 }

@@ -1,44 +1,38 @@
+"use client"
+
 import type React from "react"
+
 import { Header } from "@/components/header"
-import { Sidebar } from "@/components/ui/sidebar" // Assuming Sidebar is now in ui
-import { Package2 } from "lucide-react"
-import Link from "next/link"
-import { auth } from "@/lib/auth"
+import { Sidebar } from "@/components/ui/sidebar" // Assuming this is a placeholder for a sidebar component
+import { useMobile } from "@/hooks/use-mobile" // Assuming this hook exists
+import { usePathname } from "next/navigation"
 
-export async function LayoutWrapper({ children }: { children: React.ReactNode }) {
-  const session = await auth()
-  const userRole = session?.user?.role
+interface LayoutWrapperProps {
+  children: React.ReactNode
+}
 
-  const navItems = [
-    { href: "/recon/cards", label: "Recon Board", icon: Package2 },
-    { href: "/timeline", label: "Timeline", icon: Package2 },
-    { href: "/analytics", label: "Analytics", icon: Package2 },
+export default function LayoutWrapper({ children }: LayoutWrapperProps) {
+  const { isMobile } = useMobile()
+  const pathname = usePathname()
+
+  // Define paths where the sidebar should NOT be shown
+  const noSidebarPaths = [
+    "/auth/signin",
+    "/auth/signup",
+    "/auth/forgot-password",
+    "/auth/reset-password",
+    "/deployment-success",
+    "/mobile", // Mobile specific page might not need a full sidebar
   ]
 
-  if (userRole === "ADMIN" || userRole === "MANAGER") {
-    navItems.push({ href: "/admin", label: "Admin", icon: Package2 })
-  }
-
-  navItems.push({ href: "/integrations", label: "Integrations", icon: Package2 })
+  const showSidebar = !noSidebarPaths.some((path) => pathname.startsWith(path))
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-16 items-center border-b px-4 lg:px-6">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <Package2 className="h-6 w-6" />
-              <span className="">Recon Tracker</span>
-            </Link>
-          </div>
-          <div className="flex-1">
-            <Sidebar navItems={navItems} />
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col">
-        <Header />
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">{children}</main>
+    <div className="flex min-h-screen w-full flex-col">
+      <Header />
+      <div className="flex flex-1">
+        {showSidebar && !isMobile && <Sidebar />} {/* Render sidebar only if not mobile and not on no-sidebar paths */}
+        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">{children}</main>
       </div>
     </div>
   )

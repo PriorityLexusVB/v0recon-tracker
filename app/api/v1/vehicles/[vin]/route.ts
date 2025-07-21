@@ -1,90 +1,92 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest, { params }: { params: { vin: string } }) {
-  const session = await auth()
-  if (!session || !session.user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  }
-
   const { vin } = params
+
+  if (!vin) {
+    return NextResponse.json({ error: "VIN is required" }, { status: 400 })
+  }
 
   try {
     const vehicle = await prisma.vehicle.findUnique({
-      where: { vin },
+      where: { vin: vin.toUpperCase() },
       include: {
-        assignments: {
-          include: {
-            team: true,
-            user: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
+        assignedTo: {
+          select: { id: true, name: true, email: true },
+        },
+        timelineEvents: {
+          orderBy: { timestamp: "desc" },
+          include: { user: { select: { id: true, name: true } } },
         },
       },
     })
 
     if (!vehicle) {
-      return NextResponse.json({ message: "Vehicle not found" }, { status: 404 })
+      return NextResponse.json({ error: "Vehicle not found" }, { status: 404 })
     }
 
     return NextResponse.json(vehicle)
   } catch (error) {
-    console.error(`Error fetching vehicle ${vin}:`, error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    console.error("API Error fetching vehicle by VIN:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { vin: string } }) {
-  const session = await auth()
-  if (!session || !session.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  }
-
   const { vin } = params
-  const body = await request.json()
+  const data = await request.json()
+
+  if (!vin) {
+    return NextResponse.json({ error: "VIN is required" }, { status: 400 })
+  }
 
   try {
     const updatedVehicle = await prisma.vehicle.update({
-      where: { vin },
+      where: { vin: vin.toUpperCase() },
       data: {
-        make: body.make,
-        model: body.model,
-        year: body.year,
-        color: body.color,
-        mileage: body.mileage,
-        price: body.price,
-        status: body.status,
-        priority: body.priority,
-        location: body.location,
-        notes: body.notes,
-        // Add other fields as needed
+        stockNumber: data.stockNumber,
+        year: data.year,
+        make: data.make,
+        model: data.model,
+        trim: data.trim,
+        color: data.color,
+        mileage: data.mileage,
+        status: data.status,
+        currentLocation: data.currentLocation,
+        assignedToId: data.assignedToId,
+        reconditioningCost: data.reconditioningCost,
+        daysInRecon: data.daysInRecon,
       },
     })
+
     return NextResponse.json(updatedVehicle)
-  } catch (error) {
-    console.error(`Error updating vehicle ${vin}:`, error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    if (error.code === "P2025") {
+      return NextResponse.json({ error: "Vehicle not found" }, { status: 404 })
+    }
+    console.error("API Error updating vehicle by VIN:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { vin: string } }) {
-  const session = await auth()
-  if (!session || !session.user || session.user.role !== "ADMIN") {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  }
-
   const { vin } = params
+
+  if (!vin) {
+    return NextResponse.json({ error: "VIN is required" }, { status: 400 })
+  }
 
   try {
     await prisma.vehicle.delete({
-      where: { vin },
+      where: { vin: vin.toUpperCase() },
     })
     return NextResponse.json({ message: "Vehicle deleted successfully" })
-  } catch (error) {
-    console.error(`Error deleting vehicle ${vin}:`, error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    if (error.code === "P2025") {
+      return NextResponse.json({ error: "Vehicle not found" }, { status: 404 })
+    }
+    console.error("API Error deleting vehicle by VIN:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

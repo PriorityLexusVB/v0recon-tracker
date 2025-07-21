@@ -1,97 +1,109 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
-  const session = await auth()
-  if (!session || !session.user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  }
-
   const { searchParams } = new URL(request.url)
   const status = searchParams.get("status")
-  const make = searchParams.get("make")
-  const searchTerm = searchParams.get("search")
-  const priority = searchParams.get("priority")
+  const assignedToId = searchParams.get("assignedToId")
+  const query = searchParams.get("query")
   const page = Number.parseInt(searchParams.get("page") || "1")
   const limit = Number.parseInt(searchParams.get("limit") || "10")
-  const skip = (page - 1) * limit
 
-  const where: any = {}
+  const offset = (page - 1) * limit
 
-  if (status && status !== "all") {
-    where.status = status.toUpperCase()
+  const whereClause: any = {}
+  if (status && status !== "ALL") {
+    whereClause.status = status
   }
-  if (make && make !== "all") {
-    where.make = make
+  if (assignedToId && assignedToId !== "ALL") {
+    whereClause.assignedToId = assignedToId
   }
-  if (priority && priority !== "all") {
-    where.priority = priority.toUpperCase()
-  }
-  if (searchTerm) {
-    where.OR = [
-      { vin: { contains: searchTerm, mode: "insensitive" } },
-      { stock: { contains: searchTerm, mode: "insensitive" } },
-      { make: { contains: searchTerm, mode: "insensitive" } },
-      { model: { contains: searchTerm, mode: "insensitive" } },
+  if (query) {
+    whereClause.OR = [
+      { vin: { contains: query, mode: "insensitive" } },
+      { make: { contains: query, mode: "insensitive" } },
+      { model: { contains: query, mode: "insensitive" } },
+      { stockNumber: { contains: query, mode: "insensitive" } },
     ]
   }
 
   try {
-    const [vehicles, totalCount] = await prisma.$transaction([
-      prisma.vehicle.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          inventoryDate: "asc",
+    const vehicles = await prisma.vehicle.findMany({
+      where: whereClause,
+      include: {
+        assignedTo: {
+          select: { id: true, name: true, email: true },
         },
-      }),
-      prisma.vehicle.count({ where }),
-    ])
+        timelineEvents: {
+          orderBy: { timestamp: "desc" },
+          take: 1, // Get the latest event for quick overview
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: offset,
+      take: limit,
+    })
+
+    const totalVehicles = await prisma.vehicle.count({ where: whereClause })
 
     return NextResponse.json({
-      data: vehicles,
-      total: totalCount,
-      page,
-      limit,
+      vehicles,
+      totalPages: Math.ceil(totalVehicles / limit),
+      currentPage: page,
+      totalCount: totalVehicles,
     })
   } catch (error) {
-    console.error("Error fetching vehicles:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    console.error("API Error fetching vehicles:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth()
-  if (!session || !session.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  }
+  const data = await request.json()
 
-  const body = await request.json()
+  // Basic validation (more robust validation should be done with Zod or similar)
+  if (!data.vin || !data.year || !data.make || !data.model) {
+    return NextResponse.json({ error: "Missing required fields: vin, year, make, model" }, { status: 400 })
+  }
 
   try {
     const newVehicle = await prisma.vehicle.create({
       data: {
-        vin: body.vin,
-        stock: body.stock,
-        make: body.make,
-        model: body.model,
-        year: body.year,
-        color: body.color,
-        mileage: body.mileage,
-        price: body.price,
-        inventoryDate: body.inventoryDate ? new Date(body.inventoryDate) : new Date(),
-        daysInInventory: body.daysInInventory || 0,
-        status: body.status || "PENDING",
-        priority: body.priority || "NORMAL",
-        location: body.location || "Lot",
-        notes: body.notes || "",
+        vin: data.vin.toUpperCase(),
+        stockNumber: data.stockNumber,
+        year: data.year,
+        make: data.make,
+        model: data.model,
+        trim: data.trim,
+        color: data.color,
+        mileage: data.mileage,
+        status: data.status || "IN_PROGRESS",
+        currentLocation: data.currentLocation,
+        assignedToId: data.assignedToId,
+        reconditioningCost: data.reconditioningCost,
+        daysInRecon: 0, // New vehicles start with 0 days in recon
       },
     })
+
+    // Optionally add a timeline event for check-in
+    await prisma.timelineEvent.create({
+      data: {
+        vehicleId: newVehicle.id,
+        eventType: "CHECK_IN",
+        description: `Vehicle checked in. Initial status: ${newVehicle.status}.`,
+        department: newVehicle.currentLocation,
+        userId: newVehicle.assignedToId,
+      },
+    })
+
     return NextResponse.json(newVehicle, { status: 201 })
-  } catch (error) {
-    console.error("Error creating vehicle:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    if (error.code === "P2002" && error.meta?.target?.includes("vin")) {
+      return NextResponse.json({ error: "A vehicle with this VIN already exists." }, { status: 409 })
+    }
+    console.error("API Error creating vehicle:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

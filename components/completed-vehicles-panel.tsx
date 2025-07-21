@@ -1,98 +1,79 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { ArrowRight, Loader2, Car, CheckCircle } from "lucide-react"
-import Link from "next/link"
-import { getCompletedVehicles } from "@/app/actions/vehicles"
-import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, CheckCircle } from "lucide-react"
+import type { VehicleWithRelations } from "@/lib/vehicle-store" // Assuming this type is defined
+import { format } from "date-fns"
 
-interface Vehicle {
-  id: string
-  vin: string
-  stock: string
-  make: string
-  model: string
-  year: number
-  completedAt?: Date
+interface CompletedVehiclesPanelProps {
+  vehicles: VehicleWithRelations[]
+  loading: boolean
+  error: string | null
 }
 
-export function CompletedVehiclesPanel() {
-  const [completedVehicles, setCompletedVehicles] = useState<Vehicle[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+export function CompletedVehiclesPanel({ vehicles, loading, error }: CompletedVehiclesPanelProps) {
+  if (loading) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading completed vehicles...</p>
+      </Card>
+    )
+  }
 
-  useEffect(() => {
-    fetchCompletedVehicles()
-  }, [])
-
-  const fetchCompletedVehicles = async () => {
-    setIsLoading(true)
-    try {
-      const data = await getCompletedVehicles()
-      setCompletedVehicles(data)
-    } catch (error) {
-      console.error("Failed to fetch completed vehicles:", error)
-      toast.error("Failed to load completed vehicles.")
-    } finally {
-      setIsLoading(false)
-    }
+  if (error) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <p className="text-red-600">{error}</p>
+      </Card>
+    )
   }
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div>
-          <CardTitle className="text-lg">Completed Vehicles</CardTitle>
-          <CardDescription>Recently finished reconditioning process</CardDescription>
-        </div>
-        <CheckCircle className="h-5 w-5 text-green-500" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-green-500" /> Recently Completed Vehicles
+        </CardTitle>
+        <CardDescription>Overview of vehicles that have finished reconditioning.</CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-            <p className="ml-2 text-gray-600">Loading...</p>
-          </div>
-        ) : completedVehicles.length === 0 ? (
-          <div className="text-center py-8">
-            <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No vehicles completed recently.</p>
-          </div>
+        {vehicles.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">No vehicles completed recently.</div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Vehicle</TableHead>
                   <TableHead>VIN</TableHead>
-                  <TableHead>Completed</TableHead>
+                  <TableHead>Make/Model</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Days in Recon</TableHead>
+                  <TableHead>Completed On</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {completedVehicles.slice(0, 5).map((vehicle) => (
+                {vehicles.map((vehicle) => (
                   <TableRow key={vehicle.id}>
-                    <TableCell className="font-medium">
-                      {vehicle.year} {vehicle.make} {vehicle.model}
-                    </TableCell>
-                    <TableCell>{vehicle.vin.slice(-6)}</TableCell>
+                    <TableCell className="font-medium">{vehicle.vin}</TableCell>
                     <TableCell>
-                      {vehicle.completedAt ? new Date(vehicle.completedAt).toLocaleDateString() : "N/A"}
+                      {vehicle.make} {vehicle.model}
                     </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        {vehicle.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{vehicle.daysInRecon} days</TableCell>
+                    <TableCell>{format(new Date(vehicle.lastUpdated), "MMM dd, yyyy")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
-        <div className="mt-4 text-right">
-          <Button variant="link" asChild>
-            <Link href="/recon/cards?status=completed">
-              View All Completed <ArrowRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
       </CardContent>
     </Card>
   )

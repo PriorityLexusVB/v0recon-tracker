@@ -1,415 +1,337 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
-import { useAuth } from "@/hooks/use-auth"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+
+import { useState, useEffect, useTransition } from "react"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserCog, Plus, Edit, Trash2, Loader2, Mail, Shield } from "lucide-react"
+import { Loader2, Plus, Search, Edit, Trash, ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
-
-interface User {
-  id: string
-  name?: string
-  email: string
-  role: "ADMIN" | "MANAGER" | "USER"
-  department?: string
-  isActive: boolean
-  createdAt: string
-  team?: {
-    id: string
-    name: string
-    department: string
-  }
-}
+import { fetchUsers, createUser, updateUser, deleteUser } from "@/app/actions/users"
+import { fetchTeams } from "@/app/actions/teams"
+import type { User, Team } from "@/lib/types" // Assuming you have these types defined
 
 export default function UsersPage() {
-  const { user, isLoading } = useAuth()
   const [users, setUsers] = useState<User[]>([])
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [teams, setTeams] = useState<Team[]>([])
+  const [loading, setLoading] = useState(true)
   const [isPending, startTransition] = useTransition()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [roleFilter, setRoleFilter] = useState("all")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({})
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const limit = 10 // Items per page
 
   useEffect(() => {
     loadUsers()
-  }, [])
+    loadTeams()
+  }, [searchQuery, currentPage])
 
   const loadUsers = async () => {
-    setIsLoadingUsers(true)
+    setLoading(true)
     try {
-      // This would be replaced with actual API call
-      const mockUsers: User[] = [
-        {
-          id: "1",
-          name: "John Admin",
-          email: "admin@example.com",
-          role: "ADMIN",
-          department: "Management",
-          isActive: true,
-          createdAt: "2024-01-01T00:00:00Z",
-        },
-        {
-          id: "2",
-          name: "Jane Manager",
-          email: "manager@example.com",
-          role: "MANAGER",
-          department: "Operations",
-          isActive: true,
-          createdAt: "2024-01-02T00:00:00Z",
-          team: {
-            id: "1",
-            name: "Shop Team A",
-            department: "shop",
-          },
-        },
-        {
-          id: "3",
-          name: "Bob User",
-          email: "user@example.com",
-          role: "USER",
-          department: "Shop",
-          isActive: true,
-          createdAt: "2024-01-03T00:00:00Z",
-          team: {
-            id: "1",
-            name: "Shop Team A",
-            department: "shop",
-          },
-        },
-      ]
-      setUsers(mockUsers)
+      const { users, totalPages } = await fetchUsers(searchQuery, currentPage, limit)
+      setUsers(users)
+      setTotalPages(totalPages)
     } catch (error) {
+      toast.error("Failed to load users.")
       console.error("Error loading users:", error)
-      toast.error("Failed to load users")
     } finally {
-      setIsLoadingUsers(false)
+      setLoading(false)
     }
   }
 
-  const handleCreateUser = (formData: FormData) => {
+  const loadTeams = async () => {
+    try {
+      const { teams } = await fetchTeams("", 1, 100) // Fetch all teams for selection
+      setTeams(teams)
+    } catch (error) {
+      toast.error("Failed to load teams for selection.")
+      console.error("Error loading teams:", error)
+    }
+  }
+
+  const handleAddUserClick = () => {
+    setEditingUser(null)
+    setFormErrors({})
+    setIsDialogOpen(true)
+  }
+
+  const handleEditUserClick = (user: User) => {
+    setEditingUser(user)
+    setFormErrors({})
+    setIsDialogOpen(true)
+  }
+
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+      return
+    }
     startTransition(async () => {
       try {
-        // This would be replaced with actual API call
-        const name = formData.get("name") as string
-        const email = formData.get("email") as string
-        const role = formData.get("role") as string
-        const department = formData.get("department") as string
-
-        const newUser: User = {
-          id: Date.now().toString(),
-          name,
-          email,
-          role: role as any,
-          department: department || undefined,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        }
-
-        setUsers((prev) => [...prev, newUser])
-        toast.success("User created successfully")
-        setIsCreateDialogOpen(false)
+        await deleteUser(id)
+        toast.success("User deleted successfully.")
+        loadUsers()
       } catch (error) {
-        console.error("Error creating user:", error)
-        toast.error("Failed to create user")
+        toast.error("Failed to delete user.")
+        console.error("Error deleting user:", error)
       }
     })
   }
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-8 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    setFormErrors({})
+
+    startTransition(async () => {
+      let result
+      if (editingUser) {
+        formData.append("id", editingUser.id)
+        result = await updateUser(formData)
+      } else {
+        result = await createUser(formData)
+      }
+
+      if (result.success) {
+        toast.success(result.message)
+        setIsDialogOpen(false)
+        loadUsers()
+      } else {
+        setFormErrors(result.errors || { general: [result.message || "An unknown error occurred."] })
+        toast.error(result.message || "Failed to save user.")
+      }
+    })
   }
 
-  if (user?.role !== "ADMIN") {
-    return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-red-600">Access denied. Admin privileges required.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case "ADMIN":
-        return "bg-red-100 text-red-800"
-      case "MANAGER":
-        return "bg-blue-100 text-blue-800"
-      case "USER":
-        return "bg-green-100 text-green-800"
-      default:
-        return "bg-gray-100 text-gray-800"
+  const handlePageChange = (newPage: number) => {
+    if (newPage > 0 && newPage <= totalPages) {
+      setCurrentPage(newPage)
     }
   }
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.department?.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesRole = roleFilter === "all" || user.role === roleFilter
-
-    return matchesSearch && matchesRole
-  })
-
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-gray-600">Manage user accounts and permissions</p>
-        </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create User
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-              <DialogDescription>Add a new user to the system.</DialogDescription>
-            </DialogHeader>
-            <form action={handleCreateUser} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" name="name" placeholder="Enter full name" required />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" placeholder="Enter email address" required />
-              </div>
-              <div>
-                <Label htmlFor="role">Role</Label>
-                <Select name="role" required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USER">User</SelectItem>
-                    <SelectItem value="MANAGER">Manager</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="department">Department (Optional)</Label>
-                <Input id="department" name="department" placeholder="Enter department" />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isPending}>
-                  {isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Create User"
-                  )}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">User Management</h1>
+        <Button onClick={handleAddUserClick}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add User
+        </Button>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input
-            placeholder="Search users by name, email, or department..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search users by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-4 py-2 border rounded-md w-full"
           />
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Filter by role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="ADMIN">Admin</SelectItem>
-            <SelectItem value="MANAGER">Manager</SelectItem>
-            <SelectItem value="USER">User</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCog className="h-5 w-5" />
-            System Users
-          </CardTitle>
-          <CardDescription>Manage user accounts and their permissions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingUsers ? (
-            <div className="text-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-              <p>Loading users...</p>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Team</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                  <p className="mt-2">Loading users...</p>
+                </TableCell>
+              </TableRow>
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  No users found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.role}</TableCell>
+                  <TableCell>{user.status}</TableCell>
+                  <TableCell>{user.team?.name || "N/A"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditUserClick(user)} className="mr-2">
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Edit</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isPending}>
+                      {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash className="h-4 w-4" />}
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex justify-between items-center mt-6">
+        <Button
+          variant="outline"
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1 || loading || isPending}
+        >
+          <ChevronLeft className="h-4 w-4 mr-2" /> Previous
+        </Button>
+        <span className="text-sm text-gray-600">
+          Page {currentPage} of {totalPages}
+        </span>
+        <Button
+          variant="outline"
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || loading || isPending}
+        >
+          Next <ChevronRight className="h-4 w-4 ml-2" />
+        </Button>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input id="name" name="name" defaultValue={editingUser?.name || ""} className="col-span-3" required />
+              {formErrors.name && <p className="col-span-4 text-right text-red-500 text-sm">{formErrors.name[0]}</p>}
             </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8">
-              <UserCog className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No users found.</p>
-              <p className="text-sm text-gray-400">Try adjusting your search or filters.</p>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={editingUser?.email || ""}
+                className="col-span-3"
+                required
+              />
+              {formErrors.email && <p className="col-span-4 text-right text-red-500 text-sm">{formErrors.email[0]}</p>}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Team</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                            <span className="text-white text-sm font-medium">
-                              {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium">{user.name || "No name"}</p>
-                            <p className="text-sm text-gray-500">ID: {user.id}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-gray-400" />
-                          <span>{user.email}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getRoleBadgeColor(user.role)}>
-                          <Shield className="h-3 w-3 mr-1" />
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{user.department || "Not assigned"}</span>
-                      </TableCell>
-                      <TableCell>
-                        {user.team ? (
-                          <div className="flex flex-col">
-                            <span className="font-medium text-sm">{user.team.name}</span>
-                            <span className="text-xs text-gray-500">{user.team.department}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500 text-sm">No team</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.isActive ? "default" : "secondary"}>
-                          {user.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{new Date(user.createdAt).toLocaleDateString()}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" title="Edit User">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" title="Delete User" disabled={user.role === "ADMIN"}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">
+                Password
+              </Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                placeholder={editingUser ? "Leave blank to keep current" : "Enter password"}
+                className="col-span-3"
+                required={!editingUser}
+              />
+              {formErrors.password && (
+                <p className="col-span-4 text-right text-red-500 text-sm">{formErrors.password[0]}</p>
+              )}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role
+              </Label>
+              <Select
+                name="role"
+                defaultValue={editingUser?.role || "USER"}
+                onValueChange={(value) => {
+                  // This is a controlled component, but we need to ensure the form data gets it
+                  // For simplicity, we'll let the form submit handle it, or you can manage state
+                }}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USER">User</SelectItem>
+                  <SelectItem value="MANAGER">Manager</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              {formErrors.role && <p className="col-span-4 text-right text-red-500 text-sm">{formErrors.role[0]}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">
+                Status
+              </Label>
+              <Select name="status" defaultValue={editingUser?.status || "ACTIVE"} onValueChange={(value) => {}}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+              {formErrors.status && (
+                <p className="col-span-4 text-right text-red-500 text-sm">{formErrors.status[0]}</p>
+              )}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="teamId" className="text-right">
+                Team
+              </Label>
+              <Select name="teamId" defaultValue={editingUser?.teamId || "none"} onValueChange={(value) => {}}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a team (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
                   ))}
-                </TableBody>
-              </Table>
+                </SelectContent>
+              </Select>
+              {formErrors.teamId && (
+                <p className="col-span-4 text-right text-red-500 text-sm">{formErrors.teamId[0]}</p>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* User Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <UserCog className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
-            <p className="text-xs text-muted-foreground">Registered users</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Admins</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.filter((u) => u.role === "ADMIN").length}</div>
-            <p className="text-xs text-muted-foreground">System administrators</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Managers</CardTitle>
-            <UserCog className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.filter((u) => u.role === "MANAGER").length}</div>
-            <p className="text-xs text-muted-foreground">Team managers</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <UserCog className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.filter((u) => u.isActive).length}</div>
-            <p className="text-xs text-muted-foreground">Currently active</p>
-          </CardContent>
-        </Card>
-      </div>
+            {formErrors.general && (
+              <p className="col-span-4 text-center text-red-500 text-sm">{formErrors.general[0]}</p>
+            )}
+            <DialogFooter>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

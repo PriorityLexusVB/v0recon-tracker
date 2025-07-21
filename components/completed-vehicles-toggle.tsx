@@ -1,60 +1,33 @@
 "use client"
-
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, XCircle } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { updateVehicleStatus } from "@/app/actions/vehicles"
-import { Loader2 } from "lucide-react" // Import Loader2
+import { useVehicleStore } from "@/lib/vehicle-store" // Assuming a Zustand store for global state
 
-interface CompletedVehiclesToggleProps {
-  vehicleId: string
-  initialStatus: boolean
-  onStatusChange?: (newStatus: boolean) => void
-}
+export function CompletedVehiclesToggle() {
+  const { showCompleted, toggleShowCompleted, isLoading } = useVehicleStore()
 
-export function CompletedVehiclesToggle({ vehicleId, initialStatus, onStatusChange }: CompletedVehiclesToggleProps) {
-  const [isCompleted, setIsCompleted] = useState(initialStatus)
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleToggle = async () => {
-    setIsLoading(true)
-    const newStatus = !isCompleted
-    try {
-      const result = await updateVehicleStatus(vehicleId, newStatus ? "COMPLETED" : "SALES_READY")
-      if (result.success) {
-        setIsCompleted(newStatus)
-        onStatusChange?.(newStatus)
-        toast.success(`Vehicle marked as ${newStatus ? "completed" : "sales ready"}.`)
-      } else {
-        toast.error(result.message || "Failed to update vehicle status.")
-      }
-    } catch (error) {
-      console.error("Error updating vehicle status:", error)
-      toast.error("An unexpected error occurred.")
-    } finally {
-      setIsLoading(false)
-    }
+  const handleToggle = () => {
+    toggleShowCompleted()
+    toast.info(showCompleted ? "Hiding completed vehicles." : "Showing completed vehicles.")
   }
 
   return (
     <Button
-      variant={isCompleted ? "default" : "outline"}
+      variant="outline"
+      size="sm"
       onClick={handleToggle}
       disabled={isLoading}
-      className="w-full"
+      className="flex items-center gap-2 bg-transparent"
     >
       {isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
-      ) : isCompleted ? (
-        <>
-          <CheckCircle className="mr-2 h-4 w-4" /> Marked Completed
-        </>
+      ) : showCompleted ? (
+        <EyeOff className="h-4 w-4" />
       ) : (
-        <>
-          <XCircle className="mr-2 h-4 w-4" /> Mark as Completed
-        </>
+        <Eye className="h-4 w-4" />
       )}
+      <span>{showCompleted ? "Hide Completed" : "Show Completed"}</span>
     </Button>
   )
 }

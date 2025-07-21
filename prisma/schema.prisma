@@ -1,13 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("POSTGRES_PRISMA_URL") // uses connection pooling
+  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
 }
 
 model Account {
@@ -40,21 +38,19 @@ model Session {
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String    @unique
-  password      String
-  role          String    @default("USER")
+  email         String?   @unique
   emailVerified DateTime?
   image         String?
+  role          String    @default("USER") // e.g., "USER", "ADMIN", "MANAGER"
+  status        String    @default("ACTIVE") // e.g., "ACTIVE", "INACTIVE", "PENDING"
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
+  accounts      Account[]
+  sessions      Session[]
+  vehicles      Vehicle[]
+  notifications Notification[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  accounts Account[]
-  sessions Session[]
-  teamMemberships TeamMember[]
-  assignments VehicleAssignment[]
-  notifications Notification[]
-
-  @@map("users")
 }
 
 model VerificationToken {
@@ -65,92 +61,55 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Team {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  members     TeamMember[]
-  assignments VehicleAssignment[]
-
-  @@map("teams")
-}
-
-model TeamMember {
-  id     String @id @default(cuid())
-  userId String
-  teamId String
-  role   String @default("MEMBER")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, teamId])
-  @@map("team_members")
-}
-
 model Vehicle {
+  id               String    @id @default(cuid())
+  vin              String    @unique
+  stockNumber      String?
+  year             Int
+  make             String
+  model            String
+  trim             String?
+  color            String?
+  mileage          Int?
+  status           String    @default("IN_PROGRESS") // e.g., "IN_PROGRESS", "COMPLETED", "ON_HOLD"
+  currentLocation  String?
+  assignedToId     String?
+  assignedTo       User?     @relation(fields: [assignedToId], references: [id])
+  reconditioningCost Float?
+  daysInRecon      Int       @default(0)
+  lastUpdated      DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  timelineEvents   TimelineEvent[]
+}
+
+model TimelineEvent {
   id          String   @id @default(cuid())
-  vin         String   @unique
-  make        String
-  model       String
-  year        Int
-  color       String?
-  status      String   @default("PENDING")
-  priority    String   @default("MEDIUM")
-  location    String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  completedAt DateTime?
-
-  assignments VehicleAssignment[]
-  statusHistory VehicleStatusHistory[]
-
-  @@map("vehicles")
-}
-
-model VehicleAssignment {
-  id        String   @id @default(cuid())
-  vehicleId String
-  teamId    String
-  userId    String?
-  status    String   @default("ASSIGNED")
-  assignedAt DateTime @default(now())
-  completedAt DateTime?
-  notes     String?
-
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@map("vehicle_assignments")
-}
-
-model VehicleStatusHistory {
-  id        String   @id @default(cuid())
-  vehicleId String
-  status    String
-  notes     String?
-  createdAt DateTime @default(now())
-
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-
-  @@map("vehicle_status_history")
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  eventType   String   // e.g., "CHECK_IN", "DEPARTMENT_CHANGE", "COMPLETED", "NOTE"
+  description String?
+  timestamp   DateTime @default(now())
+  department  String?  // e.g., "MECHANICAL", "BODY_SHOP", "DETAIL"
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
 }
 
 model Notification {
   id        String   @id @default(cuid())
   userId    String
-  title     String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // e.g., "VEHICLE_COMPLETED", "ASSIGNMENT_UPDATE", "SYSTEM_ALERT"
   message   String
-  type      String   @default("INFO")
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  status    String   @default("PENDING") // e.g., "PENDING", "SENT", "FAILED"
+}
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("notifications")
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  description String?
+  members   User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

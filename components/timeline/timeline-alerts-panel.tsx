@@ -1,103 +1,47 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { AlertTriangle, Loader2, ArrowRight, CheckCircle } from "lucide-react"
-import Link from "next/link"
-import { getOverdueAssignments } from "@/app/actions/assignments"
-import { toast } from "sonner"
+import { AlertTriangle, Clock, CheckCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
-interface OverdueAssignment {
-  id: string
-  vehicle: {
-    vin: string
-    stock: string
-    make: string
-    model: string
-    year: number
-  }
-  team: {
-    name: string
-  }
-  dueDate: Date
-  daysOverdue: number
+interface TimelineAlertsPanelProps {
+  overdueCount: number
+  upcomingCount: number
+  completedTodayCount: number
 }
 
-export function TimelineAlertsPanel() {
-  const [overdueAssignments, setOverdueAssignments] = useState<OverdueAssignment[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    fetchOverdueAssignments()
-  }, [])
-
-  const fetchOverdueAssignments = async () => {
-    setIsLoading(true)
-    try {
-      const data = await getOverdueAssignments()
-      setOverdueAssignments(data)
-    } catch (error) {
-      console.error("Failed to fetch overdue assignments:", error)
-      toast.error("Failed to load overdue assignments.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
+export function TimelineAlertsPanel({ overdueCount, upcomingCount, completedTodayCount }: TimelineAlertsPanelProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div>
-          <CardTitle className="text-lg">Overdue Assignments</CardTitle>
-          <CardDescription>Assignments past their due date</CardDescription>
-        </div>
-        <AlertTriangle className="h-5 w-5 text-red-500" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          Recon Alerts
+        </CardTitle>
+        <CardDescription>Key metrics for immediate attention</CardDescription>
       </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-            <p className="ml-2 text-gray-600">Loading...</p>
-          </div>
-        ) : overdueAssignments.length === 0 ? (
-          <div className="text-center py-8">
-            <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
-            <p className="text-gray-600">No overdue assignments! Great job!</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Overdue By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {overdueAssignments.slice(0, 5).map((assignment) => (
-                  <TableRow key={assignment.id}>
-                    <TableCell className="font-medium">
-                      {assignment.vehicle.year} {assignment.vehicle.make} {assignment.vehicle.model}
-                    </TableCell>
-                    <TableCell>{assignment.team.name}</TableCell>
-                    <TableCell>{new Date(assignment.dueDate).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-red-600">{assignment.daysOverdue} days</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        <div className="mt-4 text-right">
-          <Button variant="link" asChild>
-            <Link href="/admin/assignments?status=overdue">
-              View All Overdue <ArrowRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
+      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="flex flex-col items-center justify-center p-4 border rounded-lg bg-red-50">
+          <AlertTriangle className="h-8 w-8 text-red-600 mb-2" />
+          <p className="text-2xl font-bold text-red-700">{overdueCount}</p>
+          <p className="text-sm text-red-600">Overdue</p>
+          <Badge variant="destructive" className="mt-2">
+            Action Required
+          </Badge>
+        </div>
+        <div className="flex flex-col items-center justify-center p-4 border rounded-lg bg-yellow-50">
+          <Clock className="h-8 w-8 text-yellow-600 mb-2" />
+          <p className="text-2xl font-bold text-yellow-700">{upcomingCount}</p>
+          <p className="text-sm text-yellow-600">Upcoming</p>
+          <Badge variant="secondary" className="mt-2">
+            Plan Ahead
+          </Badge>
+        </div>
+        <div className="flex flex-col items-center justify-center p-4 border rounded-lg bg-green-50">
+          <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
+          <p className="text-2xl font-bold text-green-700">{completedTodayCount}</p>
+          <p className="text-sm text-green-600">Completed Today</p>
+          <Badge className="bg-green-200 text-green-800 mt-2">Great Job!</Badge>
         </div>
       </CardContent>
     </Card>

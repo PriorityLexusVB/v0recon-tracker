@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -10,127 +11,120 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import { signUp } from "@/app/actions/auth" // Assuming this server action exists
 
 export default function SignUpPage() {
+  const router = useRouter()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [message, setMessage] = useState("")
-  const [isError, setIsError] = useState(false)
-  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
-    setMessage("")
-    setIsError(false)
+    setErrors({})
 
     if (password !== confirmPassword) {
-      setMessage("Passwords do not match.")
-      setIsError(true)
-      setIsSubmitting(false)
+      setErrors({ confirmPassword: "Passwords do not match." })
+      toast.error("Passwords do not match.")
       return
     }
 
-    if (password.length < 8) {
-      setMessage("Password must be at least 8 characters long.")
-      setIsError(true)
-      setIsSubmitting(false)
+    if (password.length < 6) {
+      setErrors({ password: "Password must be at least 6 characters long." })
+      toast.error("Password must be at least 6 characters long.")
       return
     }
 
-    try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name, email, password }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setMessage("Account created successfully! Redirecting to sign in...")
-        toast.success("Account created successfully!")
-        setTimeout(() => {
+    startTransition(async () => {
+      try {
+        const result = await signUp(name, email, password)
+        if (result.success) {
+          toast.success("Account created successfully! Please sign in.")
           router.push("/auth/signin")
-        }, 2000)
-      } else {
-        setMessage(data.message || "Failed to create account. Please try again.")
-        setIsError(true)
-        toast.error(data.message || "Failed to create account.")
+        } else {
+          setErrors({ general: result.message || "Failed to create account." })
+          toast.error(result.message || "Failed to create account.")
+        }
+      } catch (error) {
+        setErrors({ general: "An unexpected error occurred." })
+        toast.error("An unexpected error occurred.")
+        console.error("Sign up error:", error)
       }
-    } catch (error) {
-      console.error("Signup error:", error)
-      setMessage("An unexpected error occurred. Please try again.")
-      setIsError(true)
-      toast.error("An unexpected error occurred.")
-    } finally {
-      setIsSubmitting(false)
-    }
+    })
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Sign Up</CardTitle>
-          <CardDescription>Create a new account to get started.</CardDescription>
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl text-center">Create an Account</CardTitle>
+          <CardDescription className="text-center">
+            Enter your details below to create your Recon Tracker account.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+            <div>
+              <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
                 type="text"
                 placeholder="John Doe"
-                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                required
+                disabled={isPending}
               />
+              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
             </div>
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="m@example.com"
-                required
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isPending}
               />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
-                required
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
                 required
+                disabled={isPending}
+              />
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+            </div>
+            <div>
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={isPending}
               />
+              {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
             </div>
-            {message && <p className={`text-sm ${isError ? "text-red-500" : "text-green-600"}`}>{message}</p>}
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
+            {errors.general && <p className="text-red-500 text-sm text-center">{errors.general}</p>}
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing Up...
+                  Creating Account...
                 </>
               ) : (
                 "Sign Up"

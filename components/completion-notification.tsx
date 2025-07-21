@@ -1,35 +1,45 @@
 "use client"
 
 import { useEffect } from "react"
-import confetti from "canvas-confetti"
 import { toast } from "sonner"
+import { useCelebration } from "@/hooks/use-celebration" // Assuming this hook exists
 
 interface CompletionNotificationProps {
-  show: boolean
-  message: string
-  onClose: () => void
+  vehicleVin: string
+  vehicleMake: string
+  vehicleModel: string
+  onClose?: () => void
 }
 
-export function CompletionNotification({ show, message, onClose }: CompletionNotificationProps) {
+export function CompletionNotification({
+  vehicleVin,
+  vehicleMake,
+  vehicleModel,
+  onClose,
+}: CompletionNotificationProps) {
+  const { triggerCelebration } = useCelebration()
+
   useEffect(() => {
-    if (show) {
-      toast.success(message, {
-        duration: 5000,
-        onAutoClose: onClose,
-        action: {
-          label: "Dismiss",
-          onClick: onClose,
+    toast.success(`Vehicle Completed!`, {
+      description: `${vehicleMake} ${vehicleModel} (VIN: ${vehicleVin}) has finished reconditioning!`,
+      duration: 5000, // Display for 5 seconds
+      action: {
+        label: "View",
+        onClick: () => {
+          // Navigate to vehicle details page or dashboard
+          console.log(`Viewing vehicle ${vehicleVin}`)
+          if (onClose) onClose()
         },
-      })
+      },
+      onDismiss: () => {
+        if (onClose) onClose()
+      },
+      onAutoClose: () => {
+        if (onClose) onClose()
+      },
+    })
+    triggerCelebration() // Trigger confetti or other celebration
+  }, [vehicleVin, vehicleMake, vehicleModel, onClose, triggerCelebration])
 
-      // Trigger confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      })
-    }
-  }, [show, message, onClose])
-
-  return null // This component doesn't render anything directly
+  return null // This component doesn't render anything visible itself
 }

@@ -1,46 +1,89 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-
-interface TrendData {
-  date: string
-  value: number
-}
+import { Loader2, TrendingUp } from "lucide-react"
+import type { PerformanceTrend } from "@/lib/types" // Assuming this type is defined
 
 interface TrendChartProps {
-  data: TrendData[]
-  title: string
-  description: string
-  dataKey: string
-  lineColor: string
+  data: PerformanceTrend[]
+  loading: boolean
+  error: string | null
+  timeframe: "daily" | "weekly" | "monthly"
 }
 
-export function TrendChart({ data, title, description, dataKey, lineColor }: TrendChartProps) {
+export function TrendChart({ data, loading, error, timeframe }: TrendChartProps) {
+  if (loading) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading trend data...</p>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <p className="text-red-600">{error}</p>
+      </Card>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <p className="text-gray-500">No trend data available for this timeframe.</p>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5" /> Performance Trend ({timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}
+          )
+        </CardTitle>
+        <CardDescription>Vehicles completed and average reconditioning time over time.</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer
           config={{
-            [dataKey]: {
-              label: dataKey,
-              color: lineColor,
+            vehiclesCompleted: {
+              label: "Vehicles Completed",
+              color: "hsl(var(--chart-1))",
+            },
+            avgReconTime: {
+              label: "Avg. Recon Time (Days)",
+              color: "hsl(var(--chart-2))",
             },
           }}
           className="h-[350px]"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
+            <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis dataKey="period" />
+              <YAxis yAxisId="left" orientation="left" stroke="var(--color-vehiclesCompleted)" />
+              <YAxis yAxisId="right" orientation="right" stroke="var(--color-avgReconTime)" />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={2} name={dataKey} />
+              <Legend />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="vehiclesCompleted"
+                stroke="var(--color-vehiclesCompleted)"
+                name="Vehicles Completed"
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="avgReconTime"
+                stroke="var(--color-avgReconTime)"
+                name="Avg. Recon Time (Days)"
+              />
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>

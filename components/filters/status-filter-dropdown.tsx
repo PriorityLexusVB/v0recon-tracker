@@ -1,27 +1,49 @@
 "use client"
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { ListFilter } from "lucide-react"
+import { getVehicleStatuses } from "@/lib/data" // Assuming this utility exists
 
 interface StatusFilterDropdownProps {
-  value: string
-  onValueChange: (value: string) => void
+  currentStatus: string | undefined
+  onStatusChange: (status: string | undefined) => void
 }
 
-export function StatusFilterDropdown({ value, onValueChange }: StatusFilterDropdownProps) {
+export function StatusFilterDropdown({ currentStatus, onStatusChange }: StatusFilterDropdownProps) {
+  const statuses = getVehicleStatuses()
+
   return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Filter by Status" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Statuses</SelectItem>
-        <SelectItem value="PENDING">Pending</SelectItem>
-        <SelectItem value="IN_SHOP">In Shop</SelectItem>
-        <SelectItem value="DETAIL">Detail</SelectItem>
-        <SelectItem value="PHOTO">Photo</SelectItem>
-        <SelectItem value="SALES_READY">Sales Ready</SelectItem>
-        <SelectItem value="COMPLETED">Completed</SelectItem>
-      </SelectContent>
-    </Select>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="gap-1 bg-transparent">
+          <ListFilter className="h-3.5 w-3.5" />
+          <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Filter by Status</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onStatusChange(undefined)} className={!currentStatus ? "font-bold" : ""}>
+          All
+        </DropdownMenuItem>
+        {statuses.map((status) => (
+          <DropdownMenuItem
+            key={status}
+            onClick={() => onStatusChange(status)}
+            className={currentStatus === status ? "font-bold" : ""}
+          >
+            {status.replace(/_/g, " ")}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

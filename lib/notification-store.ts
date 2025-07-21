@@ -1,107 +1,112 @@
-import { create } from "zustand"
-import { persist, createJSONStorage } from "zustand/middleware"
-import { getDefaultEmailPreferences } from "./email-service" // Import the default email preferences
+"use client"
 
-export interface NotificationPreference {
-  browser: {
-    enabled: boolean
-    sound: boolean
-  }
-  email: {
-    enabled: boolean
-    recipientEmail: string
-    recipientName: string
-    serviceId: string
-    templateId: string
-    publicKey: string
-  }
-  webhook: {
-    enabled: boolean
-    url: string
-  }
-  escalation: {
-    enabled: boolean
-    managerEmail: string
-    escalationDelayMinutes: number
-  }
-  quietHours: {
-    enabled: boolean
-    start: string // e.g., "22:00"
-    end: string // e.g., "08:00"
-  }
-}
+// This file could be used for client-side state management for notifications
+// For example, using Zustand or React Context to manage notification display
+// and real-time updates.
+
+// Example (using a simplified approach, not a full state management library)
+
+import { useState, useEffect, useCallback } from "react"
+import type { Notification } from "@prisma/client" // Import Prisma's generated Notification type
+import {
+  getNotificationsForUser,
+  markNotificationAsRead,
+  getUnreadNotificationsCount,
+} from "@/lib/notification-service" // Import server actions
 
 interface NotificationStore {
-  preferences: NotificationPreference
-  setPreference: (category: keyof NotificationPreference, key: string, value: any) => void
-  resetPreferences: () => void
-  isDuringQuietHours: () => boolean
+  notifications: Notification[]
+  unreadCount: number
+  loading: boolean
+  error: string | null
+  fetchNotifications: (page?: number, pageSize?: number) => Promise<void>
+  markAsRead: (id: string) => Promise<void>
+  refreshUnreadCount: () => Promise<void>
 }
 
-const initialPreferences: NotificationPreference = {
-  browser: {
-    enabled: true,
-    sound: true,
-  },
-  email: getDefaultEmailPreferences(), // Use the function to get initial email preferences
-  webhook: {
-    enabled: false,
-    url: "",
-  },
-  escalation: {
-    enabled: false,
-    managerEmail: "",
-    escalationDelayMinutes: 30,
-  },
-  quietHours: {
-    enabled: false,
-    start: "22:00",
-    end: "08:00",
-  },
-}
+export function useNotificationStore(userId: string | undefined): NotificationStore {
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export const useNotificationStore = create<NotificationStore>()(
-  persist(
-    (set, get) => ({
-      preferences: initialPreferences,
-      setPreference: (category, key, value) =>
-        set((state) => ({
-          preferences: {
-            ...state.preferences,
-            [category]: {
-              ...state.preferences[category],
-              [key]: value,
-            },
-          },
-        })),
-      resetPreferences: () => set({ preferences: initialPreferences }),
-      isDuringQuietHours: () => {
-        const { enabled, start, end } = get().preferences.quietHours
-        if (!enabled) return false
+  const refreshUnreadCount = useCallback(async () => {
+    if (!userId) {
+      setUnreadCount(0)
+      return
+    }
+    try {
+      const result = await getUnreadNotificationsCount(userId)
+      if (result.success) {
+        setUnreadCount(result.count)
+      } else {
+        setError(result.message || "Failed to refresh unread count.")
+      }
+    } catch (err) {
+      setError("Failed to refresh unread count.")
+      console.error("Error refreshing unread count:", err)
+    }
+  }, [userId])
 
-        const now = new Date()
-        const currentHour = now.getHours()
-        const currentMinute = now.getMinutes()
-        const currentTimeInMinutes = currentHour * 60 + currentMinute
-
-        const [startHour, startMinute] = start.split(":").map(Number)
-        const [endHour, endMinute] = end.split(":").map(Number)
-
-        const startTimeInMinutes = startHour * 60 + startMinute
-        const endTimeInMinutes = endHour * 60 + endMinute
-
-        if (startTimeInMinutes < endTimeInMinutes) {
-          // Quiet hours are within the same day (e.g., 22:00 to 08:00)
-          return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes < endTimeInMinutes
+  const fetchNotifications = useCallback(
+    async (page = 1, pageSize = 10) => {
+      if (!userId) {
+        setNotifications([])
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const result = await getNotificationsForUser(userId, page, pageSize)
+        if (result.success) {
+          setNotifications(result.notifications)
         } else {
-          // Quiet hours span across midnight (e.g., 22:00 to 08:00 next day)
-          return currentTimeInMinutes >= startTimeInMinutes || currentTimeInMinutes < endTimeInMinutes
+          setError(result.message || "Failed to fetch notifications.")
         }
-      },
-    }),
-    {
-      name: "notification-preferences", // name of the item in local storage
-      storage: createJSONStorage(() => localStorage), // use localStorage
+      } catch (err) {
+        setError("Failed to fetch notifications.")
+        console.error("Error fetching notifications:", err)
+      } finally {
+        setLoading(false)
+      }
     },
-  ),
-)
+    [userId],
+  )
+
+  const markAsRead = useCallback(
+    async (id: string) => {
+      try {
+        const result = await markNotificationAsRead(id)
+        if (result.success) {
+          setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+          refreshUnreadCount() // Update unread count after marking as read
+        } else {
+          setError(result.message || "Failed to mark notification as read.")
+        }
+      } catch (err) {
+        setError("Failed to mark notification as read.")
+        console.error("Error marking notification as read:", err)
+      }
+    },
+    [refreshUnreadCount],
+  )
+
+  useEffect(() => {
+    fetchNotifications()
+    refreshUnreadCount()
+    // Optionally, set up a polling mechanism or WebSocket for real-time updates
+    // const interval = setInterval(refreshUnreadCount, 60000); // Poll every minute
+    // return () => clearInterval(interval);
+  }, [userId, fetchNotifications, refreshUnreadCount])
+
+  return {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    fetchNotifications,
+    markAsRead,
+    refreshUnreadCount,
+  }
+}

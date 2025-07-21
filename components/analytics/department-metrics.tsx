@@ -1,79 +1,88 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Users, Clock, TrendingUp } from "lucide-react"
+import { Loader2, Building2 } from "lucide-react"
+import type { DepartmentMetrics } from "@/lib/types" // Assuming this type is defined
 
-interface DepartmentMetric {
-  department: string
-  avgCompletionTime: number
-  completionRate: number
-  totalAssignments: number
+interface DepartmentMetricsChartProps {
+  data: DepartmentMetrics[]
+  loading: boolean
+  error: string | null
 }
 
-interface DepartmentMetricsProps {
-  data: DepartmentMetric[]
-}
+export function DepartmentMetricsChart({ data, loading, error }: DepartmentMetricsChartProps) {
+  if (loading) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading department metrics...</p>
+      </Card>
+    )
+  }
 
-export function DepartmentMetrics({ data }: DepartmentMetricsProps) {
-  const chartData = data.map((d) => ({
-    name: d.department,
-    "Avg Time": d.avgCompletionTime,
-    "Completion Rate": d.completionRate,
-  }))
+  if (error) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <p className="text-red-600">{error}</p>
+      </Card>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <Card className="h-[400px] flex items-center justify-center">
+        <p className="text-gray-500">No department metrics available.</p>
+      </Card>
+    )
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Department Performance Metrics</CardTitle>
-        <CardDescription>Average completion time and rate by department</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" /> Department Performance
+        </CardTitle>
+        <CardDescription>Vehicles processed and average time per department.</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer
           config={{
-            "Avg Time": {
-              label: "Avg. Completion Time (Days)",
+            vehiclesCount: {
+              label: "Vehicles Count",
               color: "hsl(var(--chart-1))",
             },
-            "Completion Rate": {
-              label: "Completion Rate (%)",
+            avgTimeInDepartment: {
+              label: "Avg. Time (Days)",
               color: "hsl(var(--chart-2))",
+            },
+            completedCount: {
+              label: "Completed Count",
+              color: "hsl(var(--chart-3))",
             },
           }}
           className="h-[350px]"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
+            <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis yAxisId="left" orientation="left" stroke="var(--color-Avg-Time)" />
-              <YAxis yAxisId="right" orientation="right" stroke="var(--color-Completion-Rate)" />
+              <XAxis dataKey="department" />
+              <YAxis yAxisId="left" orientation="left" stroke="var(--color-vehiclesCount)" />
+              <YAxis yAxisId="right" orientation="right" stroke="var(--color-avgTimeInDepartment)" />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar yAxisId="left" dataKey="Avg Time" fill="var(--color-Avg-Time)" />
-              <Bar yAxisId="right" dataKey="Completion Rate" fill="var(--color-Completion-Rate)" />
+              <Legend />
+              <Bar yAxisId="left" dataKey="vehiclesCount" fill="var(--color-vehiclesCount)" name="Vehicles Count" />
+              <Bar
+                yAxisId="right"
+                dataKey="avgTimeInDepartment"
+                fill="var(--color-avgTimeInDepartment)"
+                name="Avg. Time (Days)"
+              />
+              <Bar yAxisId="left" dataKey="completedCount" fill="var(--color-completedCount)" name="Completed Count" />
             </BarChart>
           </ResponsiveContainer>
         </ChartContainer>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          {data.map((metric) => (
-            <Card key={metric.department} className="p-4">
-              <h3 className="font-semibold text-lg capitalize">{metric.department}</h3>
-              <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-                <Clock className="h-4 w-4" />
-                <span>Avg Time: {metric.avgCompletionTime.toFixed(1)} days</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <TrendingUp className="h-4 w-4" />
-                <span>Rate: {metric.completionRate.toFixed(1)}%</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Users className="h-4 w-4" />
-                <span>Assignments: {metric.totalAssignments}</span>
-              </div>
-            </Card>
-          ))}
-        </div>
       </CardContent>
     </Card>
   )

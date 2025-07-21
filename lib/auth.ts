@@ -1,71 +1,31 @@
-import NextAuth from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import CredentialsProvider from "next-auth/providers/credentials"
-import bcrypt from "bcryptjs"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "./prisma"
-import type { NextAuthConfig } from "next-auth"
 
-const config = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null
-        }
+export async function getCurrentUser() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) {
+    return null
+  }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email as string,
-          },
-        })
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { team: true },
+    })
+    return user
+  } catch (error) {
+    console.error("Error fetching current user:", error)
+    return null
+  }
+}
 
-        if (!user) {
-          return null
-        }
+export async function isAdmin() {
+  const user = await getCurrentUser()
+  return user?.role === "ADMIN"
+}
 
-        const isPasswordValid = await bcrypt.compare(credentials.password as string, user.password)
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        }
-      },
-    }),
-  ],
-  session: {
-    strategy: "jwt",
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.sub!
-        session.user.role = token.role as string
-      }
-      return session
-    },
-  },
-  pages: {
-    signIn: "/auth/signin",
-    signUp: "/auth/signup",
-  },
-} satisfies NextAuthConfig
-
-export const { handlers, auth, signIn, signOut } = NextAuth(config)
+export async function isManager() {
+  const user = await getCurrentUser()
+  return user?.role === "MANAGER" || user?.role === "ADMIN"
+}

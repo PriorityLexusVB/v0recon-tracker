@@ -48,6 +48,9 @@ export default function SystemSettingsPage() {
     startTransition(async () => {
       try {
         // This would be replaced with actual API call to save settings
+        // In a real application, you would send these settings to a server action
+        // or API route to persist them in a database.
+        // For example: await saveSystemSettings(settings);
         await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API call
         toast.success("Settings saved successfully")
       } catch (error) {

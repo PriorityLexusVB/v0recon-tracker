@@ -1,85 +1,115 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
 
-export async function getTeams() {
+const teamSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1, "Team name is required"),
+  description: z.string().optional().nullable(),
+})
+
+const createTeamSchema = teamSchema.omit({ id: true })
+const updateTeamSchema = teamSchema.extend({ id: z.string() }).partial()
+
+export async function fetchTeams(query = "", page = 1, limit = 10) {
   try {
+    const offset = (page - 1) * limit
     const teams = await prisma.team.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+        ],
+      },
       include: {
         members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-              },
-            },
-          },
-        },
-        assignments: {
-          include: {
-            vehicle: true,
-          },
+          select: { id: true, name: true, email: true },
         },
       },
       orderBy: {
         createdAt: "desc",
       },
+      skip: offset,
+      take: limit,
     })
 
-    return teams
+    const totalTeams = await prisma.team.count({
+      where: {
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+        ],
+      },
+    })
+
+    revalidatePath("/admin/teams")
+    return { teams, totalPages: Math.ceil(totalTeams / limit), currentPage: page }
   } catch (error) {
-    console.error("Error fetching teams:", error)
-    throw new Error("Failed to fetch teams")
+    console.error("Failed to fetch teams:", error)
+    throw new Error("Failed to fetch teams.")
+  }
+}
+
+export async function fetchTeamById(id: string) {
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id },
+      include: {
+        members: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+    })
+    if (!team) {
+      throw new Error("Team not found.")
+    }
+    revalidatePath(`/admin/teams/${id}`)
+    return team
+  } catch (error) {
+    console.error(`Failed to fetch team with ID ${id}:`, error)
+    throw new Error(`Failed to fetch team with ID ${id}.`)
   }
 }
 
 export async function createTeam(formData: FormData) {
-  const session = await auth()
+  const data = Object.fromEntries(formData.entries())
+  const parsed = createTeamSchema.safeParse(data)
 
-  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized")
+  if (!parsed.success) {
+    return { success: false, errors: parsed.error.flatten().fieldErrors }
   }
 
-  const name = formData.get("name") as string
-  const description = formData.get("description") as string
-
-  if (!name) {
-    throw new Error("Team name is required")
-  }
+  const { name, description } = parsed.data
 
   try {
     await prisma.team.create({
       data: {
         name,
-        description: description || null,
+        description,
       },
     })
-
     revalidatePath("/admin/teams")
-    return { success: true, message: "Team created successfully" }
+    return { success: true, message: "Team created successfully." }
   } catch (error) {
-    console.error("Error creating team:", error)
-    throw new Error("Failed to create team")
+    console.error("Failed to create team:", error)
+    return { success: false, message: "Failed to create team." }
   }
 }
 
-export async function updateTeam(id: string, formData: FormData) {
-  const session = await auth()
+export async function updateTeam(formData: FormData) {
+  const data = Object.fromEntries(formData.entries())
+  const parsed = updateTeamSchema.safeParse(data)
 
-  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized")
+  if (!parsed.success) {
+    return { success: false, errors: parsed.error.flatten().fieldErrors }
   }
 
-  const name = formData.get("name") as string
-  const description = formData.get("description") as string
+  const { id, name, description } = parsed.data
 
-  if (!name) {
-    throw new Error("Team name is required")
+  if (!id) {
+    return { success: false, message: "Team ID is required for update." }
   }
 
   try {
@@ -87,83 +117,27 @@ export async function updateTeam(id: string, formData: FormData) {
       where: { id },
       data: {
         name,
-        description: description || null,
+        description,
       },
     })
-
     revalidatePath("/admin/teams")
-    return { success: true, message: "Team updated successfully" }
+    revalidatePath(`/admin/teams/${id}`)
+    return { success: true, message: "Team updated successfully." }
   } catch (error) {
-    console.error("Error updating team:", error)
-    throw new Error("Failed to update team")
+    console.error("Failed to update team:", error)
+    return { success: false, message: "Failed to update team." }
   }
 }
 
 export async function deleteTeam(id: string) {
-  const session = await auth()
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized")
-  }
-
   try {
     await prisma.team.delete({
       where: { id },
     })
-
     revalidatePath("/admin/teams")
-    return { success: true, message: "Team deleted successfully" }
+    return { success: true, message: "Team deleted successfully." }
   } catch (error) {
-    console.error("Error deleting team:", error)
-    throw new Error("Failed to delete team")
-  }
-}
-
-export async function addTeamMember(teamId: string, userId: string, role = "MEMBER") {
-  const session = await auth()
-
-  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized")
-  }
-
-  try {
-    await prisma.teamMember.create({
-      data: {
-        teamId,
-        userId,
-        role,
-      },
-    })
-
-    revalidatePath("/admin/teams")
-    return { success: true, message: "Team member added successfully" }
-  } catch (error) {
-    console.error("Error adding team member:", error)
-    throw new Error("Failed to add team member")
-  }
-}
-
-export async function removeTeamMember(teamId: string, userId: string) {
-  const session = await auth()
-
-  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized")
-  }
-
-  try {
-    await prisma.teamMember.delete({
-      where: {
-        userId_teamId: {
-          userId,
-          teamId,
-        },
-      },
-    })
-
-    revalidatePath("/admin/teams")
-    return { success: true, message: "Team member removed successfully" }
-  } catch (error) {
-    console.error("Error removing team member:", error)
-    throw new Error("Failed to remove team member")
+    console.error("Failed to delete team:", error)
+    throw new Error("Failed to delete team.")
   }
 }

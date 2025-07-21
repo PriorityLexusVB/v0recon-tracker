@@ -1,4 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { google } from "googleapis"
+import { prisma } from "@/lib/prisma"
+import { addTimelineEvent } from "@/app/actions/vehicles"
 
 interface Vehicle {
   id: string
@@ -17,247 +20,203 @@ interface Vehicle {
   status: "in-shop" | "in-detail" | "completed"
 }
 
-export async function GET(request: NextRequest) {
-  const startTime = Date.now()
+// This route handler is for syncing data from Google Sheets
+// It expects a POST request with a body containing the sheet data
+// For security, you might want to add authentication/authorization to this endpoint
+// e.g., check for a secret token in the request headers
 
+export async function POST(request: NextRequest) {
   try {
-    const sheetsUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_URL
+    const { sheetData } = await request.json()
 
-    if (!sheetsUrl) {
+    if (!sheetData || !Array.isArray(sheetData) || sheetData.length === 0) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Google Sheets URL not configured",
-          details: "Add NEXT_PUBLIC_GOOGLE_SHEETS_URL to your environment variables",
-          troubleshooting: [
-            "1. Create a .env.local file in your project root",
-            "2. Add: NEXT_PUBLIC_GOOGLE_SHEETS_URL=your_sheet_url",
-            "3. Restart your development server",
-            "4. Make sure the URL is your Google Sheet's sharing URL",
-          ],
-        },
-        { status: 500 },
-      )
-    }
-
-    // Extract spreadsheet ID from URL
-    const spreadsheetId = sheetsUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1]
-
-    if (!spreadsheetId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid Google Sheets URL format",
-          details: `URL: ${sheetsUrl}`,
-          troubleshooting: [
-            "1. Make sure the URL is from Google Sheets",
-            "2. URL should contain '/spreadsheets/d/SHEET_ID'",
-            "3. Use the sharing URL from your Google Sheet",
-            "4. Example: https://docs.google.com/spreadsheets/d/SHEET_ID/edit?usp=sharing",
-          ],
-        },
+        { success: false, error: "Missing or invalid sheetData in request body" },
         { status: 400 },
       )
     }
 
-    console.log(`[${new Date().toISOString()}] Fetching data from spreadsheet: ${spreadsheetId}`)
+    const processedVehicles = []
 
-    // Try different GID values to find the Shop Tracker tab
-    const possibleGids = ["0", "1", "2", "1234567890", "123456789", ""]
-    let csvData = null
-    let usedGid = null
-    let headers: string[] = []
-    const attemptLog: string[] = []
+    for (const row of sheetData) {
+      const {
+        VIN,
+        Stock,
+        Year,
+        Make,
+        Model,
+        Trim,
+        Color,
+        Mileage,
+        Status,
+        Current_Location,
+        Assigned_To_Email,
+        Reconditioning_Cost,
+        Days_In_Recon,
+        Last_Updated,
+      } = row
 
-    for (const gid of possibleGids) {
-      try {
-        const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gid ? `&gid=${gid}` : ""}`
-        attemptLog.push(`Trying GID ${gid}: ${csvUrl}`)
+      if (!VIN || !Year || !Make || !Model) {
+        console.warn("Skipping row due to missing essential data:", row)
+        continue
+      }
 
-        const response = await fetch(csvUrl, {
-          headers: {
-            "User-Agent": "ReconTracker/1.0",
-            Accept: "text/csv",
+      let assignedToId: string | null = null
+      if (Assigned_To_Email) {
+        const user = await prisma.user.findUnique({
+          where: { email: Assigned_To_Email },
+          select: { id: true },
+        })
+        assignedToId = user?.id || null
+      }
+
+      const existingVehicle = await prisma.vehicle.findUnique({
+        where: { vin: VIN },
+      })
+
+      const reconditioningCost = Number.parseFloat(Reconditioning_Cost) || 0
+      const daysInRecon = Number.parseInt(Days_In_Recon) || 0
+      const mileage = Number.parseInt(Mileage) || 0
+      const year = Number.parseInt(Year)
+
+      if (existingVehicle) {
+        // Update existing vehicle
+        const updatedVehicle = await prisma.vehicle.update({
+          where: { id: existingVehicle.id },
+          data: {
+            stockNumber: Stock || existingVehicle.stockNumber,
+            year: year,
+            make: Make || existingVehicle.make,
+            model: Model || existingVehicle.model,
+            trim: Trim || existingVehicle.trim,
+            color: Color || existingVehicle.color,
+            mileage: mileage,
+            status: Status || existingVehicle.status,
+            currentLocation: Current_Location || existingVehicle.currentLocation,
+            assignedToId: assignedToId,
+            reconditioningCost: reconditioningCost,
+            daysInRecon: daysInRecon,
+            lastUpdated: Last_Updated ? new Date(Last_Updated) : new Date(),
           },
         })
 
-        if (response.ok) {
-          const text = await response.text()
-
-          if (text && text.trim().length > 0) {
-            const lines = text.split("\n").filter((line) => line.trim())
-            if (lines.length > 0) {
-              const testHeaders = parseCSVLine(lines[0])
-
-              // Check if this looks like the Shop Tracker tab
-              const hasShopColumns = testHeaders.some(
-                (h) =>
-                  h.toLowerCase().includes("through shop") ||
-                  h.toLowerCase().includes("detail complete") ||
-                  h.toLowerCase().includes("days in inventory") ||
-                  h.toLowerCase().includes("shop done") ||
-                  h.toLowerCase().includes("detail done"),
-              )
-
-              if (hasShopColumns) {
-                csvData = text
-                usedGid = gid
-                headers = testHeaders
-                attemptLog.push(`✅ Found Shop Tracker tab with GID: ${gid}`)
-                console.log(`[${new Date().toISOString()}] Found Shop Tracker tab with GID: ${gid}`)
-                break
-              } else {
-                attemptLog.push(
-                  `❌ GID ${gid} doesn't appear to be Shop Tracker tab (found: ${testHeaders.slice(0, 3).join(", ")})`,
-                )
-              }
-            }
-          }
-        } else {
-          attemptLog.push(`❌ GID ${gid} failed with status: ${response.status} ${response.statusText}`)
-        }
-      } catch (error) {
-        attemptLog.push(`❌ GID ${gid} error: ${error instanceof Error ? error.message : "Unknown error"}`)
-        continue
-      }
-    }
-
-    if (!csvData) {
-      console.log(`[${new Date().toISOString()}] Could not find Shop Tracker tab`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Could not access Shop Tracker tab",
-          details: "Make sure your Google Apps Script has run and populated the Shop Tracker tab",
-          troubleshooting: [
-            "1. Open your Google Sheet in a new tab",
-            "2. Go to Extensions > Apps Script",
-            "3. Run the updateShopTrackerFromVauto() function",
-            "4. Check that the Shop Tracker tab has data with 'Through Shop' and 'Detail Complete' columns",
-            "5. Make sure the sheet is shared publicly (Anyone with the link can view)",
-            "6. Verify the vAuto Feed tab contains vehicle data",
-          ],
-          attemptLog,
-        },
-        { status: 404 },
-      )
-    }
-
-    // Parse CSV data
-    const lines = csvData.split("\n").filter((line) => line.trim())
-
-    if (lines.length < 2) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Sheet appears to be empty",
-          details: "No data rows found in the Shop Tracker tab",
-          troubleshooting: [
-            "1. Make sure your vAuto Feed tab has vehicle data",
-            "2. Run your Google Apps Script to populate Shop Tracker",
-            "3. Check that the script completed successfully",
-            "4. Verify the Shop Tracker tab was created",
-          ],
-        },
-        { status: 400 },
-      )
-    }
-
-    const vehicles: Vehicle[] = []
-    const parseErrors: string[] = []
-
-    // Parse each data row
-    for (let i = 1; i < lines.length; i++) {
-      try {
-        const values = parseCSVLine(lines[i])
-
-        if (values.length >= headers.length && values[0]) {
-          const vehicle: any = {}
-          headers.forEach((header, index) => {
-            vehicle[header] = values[index] || ""
+        // Add timeline event if status or location changed
+        if (Status && Status !== existingVehicle.status) {
+          await addTimelineEvent({
+            vehicleId: updatedVehicle.id,
+            eventType: "STATUS_CHANGE",
+            description: `Status changed from ${existingVehicle.status} to ${updatedVehicle.status}`,
+            userId: assignedToId || undefined,
           })
-
-          // Map to our standard format with flexible column name matching
-          const standardVehicle: Vehicle = {
-            id: getColumnValue(vehicle, ["Stock #", "Stock", "Stock Number"]) || "",
-            vin: getColumnValue(vehicle, ["VIN", "Vin"]) || "",
-            year: getColumnValue(vehicle, ["Year", "Model Year"]) || "",
-            make: getColumnValue(vehicle, ["Make", "Manufacturer"]) || "",
-            model: getColumnValue(vehicle, ["Model", "Model Name"]) || "",
-            inventoryDate: getColumnValue(vehicle, ["Inventory Date", "Date In", "In Stock Date"]) || "",
-            throughShop: parseBooleanValue(getColumnValue(vehicle, ["Through Shop", "Shop Complete", "Shop Done"])),
-            shopDoneDate: getColumnValue(vehicle, ["Shop Done Date", "Shop Complete Date", "Shop Finished"]) || "",
-            detailComplete: parseBooleanValue(getColumnValue(vehicle, ["Detail Complete", "Detail Done", "Detailed"])),
-            detailDoneDate:
-              getColumnValue(vehicle, ["Detail Done Date", "Detail Complete Date", "Detail Finished"]) || "",
-            daysInInventory: parseIntValue(
-              getColumnValue(vehicle, ["Days in Inventory", "Days In Stock", "Inventory Days"]),
-            ),
-            daysToShop: parseIntValue(getColumnValue(vehicle, ["Days to Shop", "Shop Days", "Days Until Shop"])),
-            daysToDetail: parseIntValue(
-              getColumnValue(vehicle, ["Days to Detail", "Detail Days", "Days Until Detail"]),
-            ),
-            status: determineStatus(
-              parseBooleanValue(getColumnValue(vehicle, ["Through Shop", "Shop Complete", "Shop Done"])),
-              parseBooleanValue(getColumnValue(vehicle, ["Detail Complete", "Detail Done", "Detailed"])),
-            ),
-          }
-
-          // Only include vehicles with required data
-          if (standardVehicle.id && standardVehicle.vin) {
-            vehicles.push(standardVehicle)
-          } else if (standardVehicle.id || standardVehicle.vin) {
-            parseErrors.push(`Row ${i}: Missing ${!standardVehicle.id ? "Stock #" : "VIN"}`)
-          }
         }
-      } catch (error) {
-        parseErrors.push(`Row ${i}: ${error instanceof Error ? error.message : "Parse error"}`)
-        continue
+        if (Current_Location && Current_Location !== existingVehicle.currentLocation) {
+          await addTimelineEvent({
+            vehicleId: updatedVehicle.id,
+            eventType: "LOCATION_CHANGE",
+            description: `Location changed from ${existingVehicle.currentLocation} to ${updatedVehicle.currentLocation}`,
+            department: updatedVehicle.currentLocation || undefined,
+            userId: assignedToId || undefined,
+          })
+        }
+        processedVehicles.push(updatedVehicle)
+      } else {
+        // Create new vehicle
+        const newVehicle = await prisma.vehicle.create({
+          data: {
+            vin: VIN,
+            stockNumber: Stock,
+            year: year,
+            make: Make,
+            model: Model,
+            trim: Trim,
+            color: Color,
+            mileage: mileage,
+            status: Status || "IN_PROGRESS",
+            currentLocation: Current_Location,
+            assignedToId: assignedToId,
+            reconditioningCost: reconditioningCost,
+            daysInRecon: daysInRecon,
+            lastUpdated: Last_Updated ? new Date(Last_Updated) : new Date(),
+          },
+        })
+        await addTimelineEvent({
+          vehicleId: newVehicle.id,
+          eventType: "CHECK_IN",
+          description: `Vehicle checked in. Initial status: ${newVehicle.status}`,
+          department: newVehicle.currentLocation || undefined,
+          userId: assignedToId || undefined,
+        })
+        processedVehicles.push(newVehicle)
       }
     }
 
-    const responseTime = Date.now() - startTime
-
-    console.log(`[${new Date().toISOString()}] Successfully parsed ${vehicles.length} vehicles in ${responseTime}ms`)
-
-    return NextResponse.json({
-      success: true,
-      gidUsed: usedGid,
-      totalVehicles: vehicles.length,
-      headers: headers,
-      vehicles: vehicles,
-      responseTime: responseTime,
-      lastUpdated: new Date().toISOString(),
-      integration: "vAuto via Google Apps Script",
-      parseErrors: parseErrors.length > 0 ? parseErrors.slice(0, 10) : undefined, // Limit error reporting
-      dataQuality: {
-        totalRows: lines.length - 1,
-        successfullyParsed: vehicles.length,
-        parseErrorCount: parseErrors.length,
-        completionRate:
-          vehicles.length > 0
-            ? Math.round((vehicles.filter((v) => v.status === "completed").length / vehicles.length) * 100)
-            : 0,
-      },
-    })
+    return NextResponse.json({ success: true, processedCount: processedVehicles.length })
   } catch (error) {
-    const responseTime = Date.now() - startTime
-    console.error(`[${new Date().toISOString()}] Google Sheets API Error:`, error)
-
+    console.error("Google Sheets Sync API error:", error)
     return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to fetch data from Google Sheets",
-        details: error instanceof Error ? error.message : "Unknown error",
-        responseTime: responseTime,
-        troubleshooting: [
-          "1. Check your internet connection",
-          "2. Verify the Google Sheet URL is correct",
-          "3. Make sure the sheet is publicly accessible",
-          "4. Try running your Google Apps Script again",
-          "5. Check the browser console for more details",
-        ],
-      },
+      { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" },
+      { status: 500 },
+    )
+  }
+}
+
+// This route handler is for fetching data from Google Sheets
+// It's typically triggered by the client or a cron job
+export async function GET(request: NextRequest) {
+  const googleSheetsUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_URL
+
+  if (!googleSheetsUrl) {
+    return NextResponse.json({ success: false, error: "Google Sheets URL not configured." }, { status: 500 })
+  }
+
+  try {
+    // Extract spreadsheet ID and range from the URL
+    const urlMatch = googleSheetsUrl.match(/\/d\/([a-zA-Z0-9_-]+)\/edit(?:#gid=(\d+))?/)
+    if (!urlMatch || !urlMatch[1]) {
+      throw new Error("Invalid Google Sheets URL format.")
+    }
+    const spreadsheetId = urlMatch[1]
+    const gid = urlMatch[2] // Optional gid for specific sheet
+
+    // You'll need to set up Google Cloud credentials for a service account
+    // and provide them as environment variables or a key file.
+    // For simplicity, this example assumes you have GOOGLE_APPLICATION_CREDENTIALS
+    // pointing to a service account key file, or similar setup for authentication.
+    // In a real application, you'd use a more robust authentication method.
+
+    const auth = new google.auth.GoogleAuth({
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    })
+    const authClient = await auth.getClient()
+    const sheets = google.sheets({ version: "v4", auth: authClient as any })
+
+    // Assuming the first sheet, or specify by name/gid if needed
+    const range = "Sheet1!A:Z" // Adjust this to your actual sheet name and range
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    })
+
+    const rows = response.data.values
+    if (!rows || rows.length === 0) {
+      return NextResponse.json({ success: true, data: [] })
+    }
+
+    const headers = rows[0]
+    const data = rows.slice(1).map((row) => {
+      const rowObject: { [key: string]: any } = {}
+      headers.forEach((header, index) => {
+        rowObject[header] = row[index]
+      })
+      return rowObject
+    })
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error("Error fetching from Google Sheets:", error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to fetch data from Google Sheets." },
       { status: 500 },
     )
   }
@@ -275,7 +234,7 @@ function parseCSVLine(line: string): string[] {
 
     if (char === '"') {
       if (inQuotes && line[i + 1] === '"') {
-        // Handle escaped quotes
+        // Handle escaped quotes (e.g., "" inside a quoted field)
         current += '"'
         i += 2
         continue
@@ -293,12 +252,14 @@ function parseCSVLine(line: string): string[] {
   }
 
   result.push(current.trim())
+  // Remove surrounding quotes if present
   return result.map((value) => value.replace(/^"|"$/g, ""))
 }
 
-// Helper function to get column value with flexible matching
+// Helper function to get column value with flexible matching (case-insensitive, multiple names)
 function getColumnValue(vehicle: any, possibleNames: string[]): string {
   for (const name of possibleNames) {
+    // Try direct match
     if (vehicle[name] !== undefined && vehicle[name] !== null) {
       return String(vehicle[name]).trim()
     }
@@ -311,21 +272,21 @@ function getColumnValue(vehicle: any, possibleNames: string[]): string {
   return ""
 }
 
-// Helper function to parse boolean values from Google Sheets
+// Helper function to parse boolean values from Google Sheets (e.g., "TRUE", "Yes", "1", "✓", "X")
 function parseBooleanValue(value: string): boolean {
   if (!value) return false
   const lowerValue = value.toLowerCase().trim()
   return lowerValue === "true" || lowerValue === "yes" || lowerValue === "1" || lowerValue === "✓" || lowerValue === "x"
 }
 
-// Helper function to parse integer values
+// Helper function to parse integer values, removing non-numeric characters
 function parseIntValue(value: string): number {
   if (!value) return 0
-  const parsed = Number.parseInt(value.replace(/[^0-9-]/g, ""))
+  const parsed = Number.parseInt(value.replace(/[^0-9-]/g, "")) // Allow negative numbers if applicable
   return isNaN(parsed) ? 0 : parsed
 }
 
-// Helper function to determine vehicle status
+// Helper function to determine vehicle status based on completion flags
 function determineStatus(throughShop: boolean, detailComplete: boolean): "in-shop" | "in-detail" | "completed" {
   if (detailComplete) {
     return "completed"
@@ -333,31 +294,5 @@ function determineStatus(throughShop: boolean, detailComplete: boolean): "in-sho
     return "in-detail"
   } else {
     return "in-shop"
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    console.log(`[${new Date().toISOString()}] Google Sheets POST request:`, body)
-
-    // This endpoint could be used for webhook updates from Google Sheets
-    // or for manual data sync triggers in the future
-
-    return NextResponse.json({
-      success: true,
-      message: "Data received successfully",
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Google Sheets POST error:`, error)
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      },
-      { status: 500 },
-    )
   }
 }

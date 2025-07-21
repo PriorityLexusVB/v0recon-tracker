@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+// This is a placeholder for an SMS notification API route.
+// In a real application, you would integrate with an SMS service provider
+// like Twilio, Vonage, or MessageBird here.
+
 export async function POST(request: NextRequest) {
   try {
     const { to, message } = await request.json()
@@ -8,17 +12,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing required fields: to, message" }, { status: 400 })
     }
 
-    // This is a placeholder for a real SMS service (e.g., Twilio, Vonage)
-    console.log(`[SMS Service] Sending SMS to ${to}: "${message}"`)
-
-    // In a real application, you would integrate with an SMS API here
-    // const smsResult = await twilioClient.messages.create({
+    // --- SMS Service Integration Placeholder ---
+    console.log(`Attempting to send SMS to: ${to} with message: "${message}"`)
+    // Example using a hypothetical SMS client:
+    // const smsClient = new SMSProviderClient({
+    //   accountSid: process.env.SMS_ACCOUNT_SID,
+    //   authToken: process.env.SMS_AUTH_TOKEN,
+    // });
+    // await smsClient.messages.create({
     //   body: message,
-    //   from: process.env.TWILIO_PHONE_NUMBER,
+    //   from: process.env.SMS_FROM_NUMBER,
     //   to: to,
     // });
+    // console.log("SMS sent successfully!");
+    // -------------------------------------------
 
-    return NextResponse.json({ success: true, message: "SMS sent (mock service)." })
+    // Simulate success for now
+    return NextResponse.json({ success: true, message: "SMS notification simulated successfully." })
   } catch (error) {
     console.error("SMS API error:", error)
     return NextResponse.json(

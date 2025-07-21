@@ -1,5 +1,12 @@
+"use client"
+
 import { create } from "zustand"
 import type { Vehicle, FilterState, VehicleStats } from "./types"
+import type React from "react"
+import { createContext, useContext } from "react"
+import { useNotificationStore, type NotificationStore } from "./notification-store"
+import { useAnalyticsStore, type AnalyticsStore } from "./analytics-store"
+import { useAuth } from "@/hooks/use-auth" // Assuming useAuth provides user ID
 
 interface VehicleStore {
   vehicles: Vehicle[]
@@ -8,10 +15,22 @@ interface VehicleStore {
   stats: VehicleStats
   loading: boolean
   setVehicles: (vehicles: Vehicle[]) => void
-  setFilters: (filters: Partial<FilterState>) => void
+  setFilters: (newFilters: Partial<FilterState>) => void
   setLoading: (loading: boolean) => void
   calculateStats: () => void
   applyFilters: () => void
+}
+
+interface AppState {
+  isSidebarOpen: boolean
+  toggleSidebar: () => void
+  closeSidebar: () => void
+}
+
+interface AppStore {
+  vehicleStore: VehicleStore
+  notificationStore: NotificationStore
+  analyticsStore: AnalyticsStore
 }
 
 const isOverdue = (date: string | undefined, completed: boolean): boolean => {
@@ -31,12 +50,38 @@ const getOverdueDays = (date: string | undefined, completed: boolean): number =>
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
 
+const AppStoreContext = createContext<AppStore | undefined>(undefined)
+
+export function AppStoreProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth() // Get current user from auth hook
+  const vehicleStore = useVehicleStore()
+  const notificationStore = useNotificationStore(user?.id) // Pass user ID to notification store
+  const analyticsStore = useAnalyticsStore()
+
+  const store: AppStore = {
+    vehicleStore,
+    notificationStore,
+    analyticsStore,
+  }
+
+  return <AppStoreContext.Provider value={store}>{children}</AppStoreContext.Provider>
+}
+
+export function useAppStore() {
+  const context = useContext(AppStoreContext)
+  if (context === undefined) {
+    throw new Error("useAppStore must be used within an AppStoreProvider")
+  }
+  return context
+}
+
 export const useVehicleStore = create<VehicleStore>((set, get) => ({
   vehicles: [],
   filteredVehicles: [],
   filters: {
     search: "",
     status: "all",
+    activeStatFilter: undefined, // Added activeStatFilter to FilterState
   },
   stats: {
     total: 0,
@@ -158,3 +203,13 @@ export const useVehicleStore = create<VehicleStore>((set, get) => ({
     set({ filteredVehicles: filtered })
   },
 }))
+
+// This file is intentionally left blank as general application state management
+// is handled by individual components or specific stores (e.g., useAuth hook).
+// If a centralized global store is needed, this file could be used.
+
+// Example usage in a component:
+// import { useAppStore } from '@/lib/store';
+// const { vehicleStore, notificationStore } = useAppStore();
+// const { vehicles, loading: vehiclesLoading } = vehicleStore;
+// const { unreadCount, fetchNotifications } = notificationStore;
